@@ -74,5 +74,5 @@ accelerate launch --config_file ${CONFIG} workflow/finetune_kg_specialized_llm.p
     --auto_find_batch_size ${auto_find_batch_size} \
     --neftune_noise_alpha 5 \
     --attn_implementation ${ATTN_IMP} \
-    --response_template \"${RESPONSE_TEMPLATE}\" \
+    --response_template "${RESPONSE_TEMPLATE}" \
     --run_name ${SAVE_NAME}
