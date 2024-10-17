@@ -8,7 +8,7 @@ Graph-constrained Reasoning (GCR) is a novel framework that  bridges structured 
 
 ## Dependencies
 
-We use [Poetry](https://python-poetry.org/) to manage dependencies.  
+We use [Poetry](https://python-poetry.org/) to manage dependencies.  CUDA 12.1 is recommended.
 
 Step 1: Install `Poetry`   
 `curl -sSL https://install.python-poetry.org | python3 -`
