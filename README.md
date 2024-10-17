@@ -21,6 +21,12 @@ conda activate GCR
 poetry install
 ```
 
+Step 3: Install Flash-attention for fast decoding
+
+```bash
+pip install flash-attn --no-build-isolation
+```
+
 ## Build graph index
 
 > [!NOTE]

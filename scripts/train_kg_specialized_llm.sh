@@ -47,6 +47,7 @@ CONFIG="accelerate_configs/deepspeed_zero3.yaml"
 
 
 SAVE_PATH=save_models/GCR-$(basename "$MODEL_PATH")
+SAVE_NAME=$(basename "$SAVE_PATH")
 
 accelerate launch --config_file ${CONFIG} workflow/finetune_kg_specialized_llm.py \
     --data_path_list ${DATASET_LIST}  \
