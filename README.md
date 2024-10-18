@@ -1,6 +1,6 @@
 # Graph-constrained Reasoning (GCR)
 
-Official Implementation of "[Graph-constrained Reasoning: Faithful Reasoning on Knowledge Graphs with Large Language Models](https://arxiv.org/abs/xx)".
+Official Implementation of "[Graph-constrained Reasoning: Faithful Reasoning on Knowledge Graphs with Large Language Models](https://arxiv.org/abs/2410.13080)".
 
 ![](resources/GCR.png)
 
