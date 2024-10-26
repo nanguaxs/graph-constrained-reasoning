@@ -122,3 +122,14 @@ python workflow/predict_final_answer.py \
 ![](resources/KGQA.png)
 ![](resources/efficiency.png)
 ![](resources/cases.png)
+
+## Bibinfo
+If you found this repo helpful, please help us by citing this paper:
+```
+@article{luo2024graph,
+  title={Graph-constrained Reasoning: Faithful Reasoning on Knowledge Graphs with Large Language Models},
+  author={Luo, Linhao and Zhao, Zicheng and Gong, Chen and Haffari, Gholamreza and Pan, Shirui},
+  journal={arXiv preprint arXiv:2410.13080},
+  year={2024}
+}
+```
