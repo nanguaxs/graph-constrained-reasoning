@@ -99,7 +99,7 @@ Generated reasoning paths and hypotheses answers will be saved at: `results/GenP
 
 ### Step 2: Graph Inductive reasoning
 
-We a general LLM to reason over multiple reasoning paths and hypotheses answers to produce the final answer without additional training.
+We use a general LLM to reason over multiple reasoning paths and hypotheses answers to produce the final answer without additional training.
 
 Run: `scripts/graph_inductive_reasoning.sh`
 
