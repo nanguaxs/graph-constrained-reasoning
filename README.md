@@ -126,10 +126,10 @@ python workflow/predict_final_answer.py \
 ## Bibinfo
 If you found this repo helpful, please help us by citing this paper:
 ```
-@article{luo2024graph,
+@inproceedings{luo2024graph,
   title={Graph-constrained Reasoning: Faithful Reasoning on Knowledge Graphs with Large Language Models},
   author={Luo, Linhao and Zhao, Zicheng and Gong, Chen and Haffari, Gholamreza and Pan, Shirui},
-  journal={arXiv preprint arXiv:2410.13080},
-  year={2024}
+  booktitle={Forty-second International Conference on Machine Learning},
+  year={2025}
 }
 ```
