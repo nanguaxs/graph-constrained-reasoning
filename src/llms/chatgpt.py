@@ -18,7 +18,7 @@ def get_token_limit(model='gpt-4'):
         num_tokens_limit = 128000
     elif model in ['gpt-3.5-turbo-16k', 'gpt-3.5-turbo-16k-0613']:
         num_tokens_limit = 16384
-    elif model in ['gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'text-davinci-003', 'text-davinci-002']:
+    elif model in ['gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'text-davinci-003', 'text-davinci-002，gpt-3.5-turbo-1106']:
         num_tokens_limit = 4096
     else:
         raise NotImplementedError(f"""get_token_limit() is not implemented for model {model}.""")
@@ -53,9 +53,13 @@ class ChatGPT(BaseLanguageModel):
         return num_tokens
     
     def prepare_for_inference(self, model_kwargs={}):
-        client = OpenAI(
-        api_key=os.environ['OPENAI_API_KEY'],  # this is also the default, it can be omitted
-        )
+        client_kwargs = {
+            "api_key": os.environ.get('OPENAI_API_KEY'),
+        }
+        # 添加对base_url的支持，可以通过环境变量OPENAI_BASE_URL配置
+        if 'OPENAI_BASE_URL' in os.environ:
+            client_kwargs["base_url"] = os.environ['OPENAI_BASE_URL']
+        client = OpenAI(**client_kwargs)
         self.client = client
     
     def prepare_model_prompt(self, query):

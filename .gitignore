@@ -9,3 +9,4 @@ accelerate_configs/
 wandb/
 data
 results/
+offline_assets/
