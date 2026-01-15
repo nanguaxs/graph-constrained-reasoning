@@ -1,0 +1,9 @@
+{
+  "kg_file": "kg_triples_clean.json",
+  "output_file": "kg_qa_dataset.json",
+  "api_key": "sk-rJYUd73TTCVfV8b9OLrpwIhJS5SrM2BAdrhnboGwVrAVRQb2",
+  "model": "gpt-4o",
+  "base_url": "https://yunwu.ai/v1",
+  "num_samples": 50,
+  "one_hop_ratio": 0.5
+}
