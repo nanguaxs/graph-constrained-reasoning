@@ -433,7 +433,7 @@ class PromptBuilder(object):
 
         input = self.QUESTION.format(question=question)
         # MCQ
-        if len(question_dict['choices']) > 0:
+        if 'choices' in question_dict and len(question_dict['choices']) > 0:
             choices = '\n'.join(question_dict['choices'])
             input += self.CHOICES.format(choices = choices)
             if self.add_rule or self.add_path:
