@@ -21,7 +21,9 @@ def get_token_limit(model='gpt-4'):
     elif model in ['gpt-3.5-turbo', 'gpt-3.5-turbo-0613', 'text-davinci-003', 'text-davinci-002，gpt-3.5-turbo-1106']:
         num_tokens_limit = 4096
     else:
-        raise NotImplementedError(f"""get_token_limit() is not implemented for model {model}.""")
+        # 对于未知模型（如 qwen 等），使用默认的 128000 token 限制
+        print(f"Warning: model {model} not in predefined list, using default token limit 128000")
+        num_tokens_limit = 128000
     return num_tokens_limit
 
 PROMPT = """{instruction}
@@ -49,7 +51,10 @@ class ChatGPT(BaseLanguageModel):
             encoding = tiktoken.encoding_for_model(self.model_name)
             num_tokens = len(encoding.encode(text))
         except KeyError:
-            raise KeyError(f"Warning: model {self.model_name} not found.")
+            # 对于非 OpenAI 模型（如 qwen），使用简单估算：1 token ≈ 4 字符（英文）或 1.5 字符（中文）
+            # 这里使用保守估计：字符数 / 2
+            print(f"Warning: model {self.model_name} not found in tiktoken. Using character-based estimation.")
+            num_tokens = len(text) // 2
         return num_tokens
     
     def prepare_for_inference(self, model_kwargs={}):
