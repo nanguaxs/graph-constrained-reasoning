@@ -20,14 +20,24 @@ def get_output_file(path, force=False):
         fout = open(path, "w")
         return fout, []
     else:
+        error_log_path = path.replace(".jsonl", "_errors.jsonl")
         with open(path, "r") as f:
             processed_results = []
+            line_num = 0
             for line in f:
+                line_num += 1
                 try:
                     results = json.loads(line)
-                except:
-                    raise ValueError("Error in line: ", line)
-                processed_results.append(results["id"])
+                    processed_results.append(results["id"])
+                except Exception as e:
+                    print(f"Warning: Failed to parse JSON at line {line_num}: {str(e)}")
+                    with open(error_log_path, "a", encoding="utf-8") as ferr:
+                        ferr.write(json.dumps({
+                            "line_number": line_num,
+                            "error": str(e),
+                            "raw_line": line.strip()
+                        }) + "\n")
+                    continue
         fout = open(path, "a")
         return fout, processed_results
 
@@ -182,9 +192,24 @@ def main(args, LLM):
                 path_name = path_name[:64] + "_" + path_name_md5
             prediction_suffix = f"add_path_{path_name}"
             paths_datasets = []
+            error_log_path = args.reasoning_path.replace(".jsonl", "_load_errors.jsonl")
             with open(args.reasoning_path, "r") as f:
+                line_num = 0
                 for line in f:
-                    paths_datasets.append(json.loads(line))
+                    line_num += 1
+                    try:
+                        paths_datasets.append(json.loads(line))
+                    except Exception as e:
+                        print(f"Warning: Failed to parse JSON from {args.reasoning_path} at line {line_num}: {str(e)}")
+                        with open(error_log_path, "a", encoding="utf-8") as ferr:
+                            ferr.write(json.dumps({
+                                "source_file": args.reasoning_path,
+                                "line_number": line_num,
+                                "error": str(e),
+                                "raw_line": line.strip()
+                            }) + "\n")
+                        continue
+            print(f"Successfully loaded {len(paths_datasets)} paths from {args.reasoning_path}")
             dataset = merge_path_result(
                 dataset,
                 paths_datasets,
@@ -207,7 +232,25 @@ def main(args, LLM):
             prediction_suffix += f"_assistant_{assistant_model_name}"
     elif args.add_rule:
         prediction_suffix = args.rule_path.replace("/", "_").replace(".", "_")
-        rule_dataset = load_jsonl(args.rule_path)
+        rule_dataset = []
+        error_log_path = args.rule_path.replace(".jsonl", "_load_errors.jsonl")
+        with open(args.rule_path, "r") as f:
+            line_num = 0
+            for line in f:
+                line_num += 1
+                try:
+                    rule_dataset.append(json.loads(line))
+                except Exception as e:
+                    print(f"Warning: Failed to parse JSON from {args.rule_path} at line {line_num}: {str(e)}")
+                    with open(error_log_path, "a", encoding="utf-8") as ferr:
+                        ferr.write(json.dumps({
+                            "source_file": args.rule_path,
+                            "line_number": line_num,
+                            "error": str(e),
+                            "raw_line": line.strip()
+                        }) + "\n")
+                    continue
+        print(f"Successfully loaded {len(rule_dataset)} rules from {args.rule_path}")
         dataset = merge_rule_result(dataset, rule_dataset, args.n, args.filter_empty)
     else:
         prediction_suffix = "no-path"

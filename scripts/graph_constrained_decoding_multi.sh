@@ -20,7 +20,7 @@ export HF_HUB_OFFLINE=1
 
 DATA_PATH="./offline_assets/datasets"
 # DATA_LIST="RoG-webqsp RoG-cwq"
-DATA_LIST="industry-kg"
+DATA_LIST="kg_qa_dataset"
 SPLIT="train"
 INDEX_LEN=2
 ATTN_IMP=flash_attention_2
@@ -28,12 +28,12 @@ ATTN_IMP=flash_attention_2
 # 定义多个模型路径（可以根据需要添加更多模型）
 MODEL_PATHS=(
     "./offline_assets/models/GCR-Qwen2-0.5B-Instruct"
-    # "./offline_assets/models/另一个模型路径"
+    #"./offline_assets/models/另一个模型路径"
     # "./offline_assets/models/第三个模型路径"
 )
 
 # 定义多个 k 值
-K_VALUES=(3 5 10 20)
+K_VALUES=(3 5 10 )
 
 # 遍历所有模型
 for MODEL_PATH in "${MODEL_PATHS[@]}"; do

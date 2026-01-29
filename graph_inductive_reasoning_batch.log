@@ -1,0 +1,39 @@
+==========================================
+Batch Inductive Reasoning Script
+==========================================
+==========================================
+Processing model: GCR-Qwen2-0.5B-Instruct
+==========================================
+Dataset: kg_qa_dataset
+Running inductive reasoning with k=3...
+Using reasoning path: results/GenPaths/kg_qa_dataset/GCR-Qwen2-0.5B-Instruct/train/zero-shot-group-beam-k3-index_len2/predictions.jsonl
+Map:   0%|          | 0/200 [00:00<?, ? examples/s]Map: 100%|██████████| 200/200 [00:00<00:00, 2669.79 examples/s]
+Save results to:  results/KGQA/kg_qa_dataset/gpt-4o/train/add_path_results_GenPaths_kg_qa_dataset_GCR-Qwen2-0.5B-Instruct_train_zer_22b9d555b54ef8ad89a1343db4764f5e_no_dup
+Prepare pipline for inference...
+  0%|          | 0/200 [00:00<?, ?it/s] 11%|█         | 22/200 [00:00<00:01, 132.23it/s] 20%|██        | 41/200 [00:00<00:01, 148.58it/s] 32%|███▏      | 63/200 [00:00<00:00, 174.38it/s] 42%|████▎     | 85/200 [00:00<00:00, 189.30it/s] 54%|█████▎    | 107/200 [00:00<00:00, 191.91it/s] 66%|██████▌   | 131/200 [00:00<00:00, 184.92it/s] 78%|███████▊  | 156/200 [00:00<00:00, 199.56it/s] 88%|████████▊ | 177/200 [00:00<00:00, 201.60it/s] 99%|█████████▉| 198/200 [00:01<00:00, 169.63it/s]100%|██████████| 200/200 [00:01<00:00, 179.49it/s]
+Accuracy: 34.0 Hit: 34.0 F1: 31.91666666666667 Precision: 30.91666666666667 Recall: 34.0
+Completed k=3
+------------------------------------------
+Running inductive reasoning with k=5...
+Using reasoning path: results/GenPaths/kg_qa_dataset/GCR-Qwen2-0.5B-Instruct/train/zero-shot-group-beam-k5-index_len2/predictions.jsonl
+Map:   0%|          | 0/200 [00:00<?, ? examples/s]Map: 100%|██████████| 200/200 [00:00<00:00, 3400.74 examples/s]
+Save results to:  results/KGQA/kg_qa_dataset/gpt-4o/train/add_path_results_GenPaths_kg_qa_dataset_GCR-Qwen2-0.5B-Instruct_train_zer_47d507fbb4ad8e77ce3c1b5fb7660c65_no_dup
+Prepare pipline for inference...
+  0%|          | 0/200 [00:00<?, ?it/s] 11%|█         | 22/200 [00:00<00:00, 181.74it/s] 20%|██        | 41/200 [00:00<00:01, 150.55it/s] 30%|███       | 61/200 [00:00<00:00, 166.44it/s] 41%|████      | 82/200 [00:00<00:00, 177.56it/s] 52%|█████▏    | 103/200 [00:00<00:00, 166.37it/s] 62%|██████▏   | 124/200 [00:00<00:00, 176.75it/s] 72%|███████▏  | 143/200 [00:00<00:00, 168.94it/s] 84%|████████▍ | 169/200 [00:00<00:00, 188.43it/s] 94%|█████████▍| 189/200 [00:01<00:00, 156.82it/s]100%|██████████| 200/200 [00:01<00:00, 173.71it/s]
+Accuracy: 34.5 Hit: 34.5 F1: 33.03333333333333 Precision: 32.375 Recall: 34.5
+Completed k=5
+------------------------------------------
+Running inductive reasoning with k=10...
+Using reasoning path: results/GenPaths/kg_qa_dataset/GCR-Qwen2-0.5B-Instruct/train/zero-shot-group-beam-k10-index_len2/predictions.jsonl
+Map:   0%|          | 0/200 [00:00<?, ? examples/s]Map: 100%|██████████| 200/200 [00:00<00:00, 2805.41 examples/s]
+Save results to:  results/KGQA/kg_qa_dataset/gpt-4o/train/add_path_results_GenPaths_kg_qa_dataset_GCR-Qwen2-0.5B-Instruct_train_zer_4934be0051361b3afa17cd292b4e56f1_no_dup
+Prepare pipline for inference...
+  0%|          | 0/200 [00:00<?, ?it/s]  0%|          | 1/200 [00:03<11:52,  3.58s/it]  1%|          | 2/200 [00:04<05:48,  1.76s/it]  2%|▏         | 4/200 [00:04<02:33,  1.28it/s]  4%|▎         | 7/200 [00:06<02:10,  1.48it/s]  8%|▊         | 16/200 [00:06<00:39,  4.67it/s] 10%|▉         | 19/200 [00:07<00:51,  3.48it/s] 12%|█▎        | 25/200 [00:08<00:35,  4.90it/s] 18%|█▊        | 35/200 [00:08<00:18,  8.81it/s] 19%|█▉        | 38/200 [00:13<01:03,  2.55it/s] 32%|███▎      | 65/200 [00:14<00:16,  8.06it/s] 36%|███▌      | 72/200 [00:15<00:17,  7.49it/s] 38%|███▊      | 77/200 [00:16<00:17,  7.17it/s] 41%|████      | 82/200 [00:16<00:15,  7.83it/s] 43%|████▎     | 86/200 [00:16<00:14,  7.83it/s] 44%|████▍     | 89/200 [00:17<00:14,  7.85it/s] 46%|████▌     | 91/200 [00:18<00:19,  5.51it/s] 50%|████▉     | 99/200 [00:18<00:12,  7.78it/s] 50%|█████     | 101/200 [00:19<00:16,  6.01it/s] 52%|█████▏    | 104/200 [00:20<00:15,  6.02it/s] 55%|█████▌    | 110/200 [00:20<00:13,  6.91it/s] 57%|█████▋    | 114/200 [00:20<00:09,  8.73it/s] 58%|█████▊    | 116/200 [00:21<00:10,  8.09it/s] 60%|█████▉    | 119/200 [00:21<00:12,  6.69it/s] 61%|██████    | 122/200 [00:22<00:14,  5.54it/s] 64%|██████▍   | 128/200 [00:23<00:10,  6.86it/s] 64%|██████▍   | 129/200 [00:23<00:13,  5.29it/s] 68%|██████▊   | 136/200 [00:24<00:09,  7.07it/s] 70%|██████▉   | 139/200 [00:26<00:13,  4.38it/s] 72%|███████▏  | 144/200 [00:28<00:16,  3.43it/s] 80%|████████  | 161/200 [00:28<00:04,  8.48it/s] 82%|████████▏ | 164/200 [00:28<00:04,  8.90it/s] 86%|████████▋ | 173/200 [00:28<00:02, 12.52it/s] 88%|████████▊ | 177/200 [00:29<00:01, 13.54it/s] 90%|█████████ | 180/200 [00:29<00:01, 11.64it/s] 91%|█████████ | 182/200 [00:31<00:03,  4.60it/s] 99%|█████████▉| 198/200 [00:32<00:00, 10.16it/s]100%|██████████| 200/200 [00:32<00:00,  6.21it/s]
+f8\n# Reasoning Path:\n\u6210\u90fd\u5e02:location.location.events -> 2013 JASON FESTIVAL - DAY 2 -> event.disaster.areas_affected -> San Diego -> location.location.events -> 2008 Napa Earthquake -> event.disaster.areas_affected -> San Diego -> location.location.contains -> University of San Diego -> education.educational_institution.s Faculty -> m.04st80s -> education Staff_position.school -> University of California, San Diego\n# Answer:\nUniversity of California, San Diego\n# Reasoning Path:\n\u6210\u90fd\u535a\u667a\u7ef4\u8baf\u4fe1\u606f\u6280\u672f\u80a1\u4efd\u6709\u9650\u516c\u53f8 -> \u4f9b\u5e94 -> \u4e09\u5168\u98df\u54c1\u80a1\u4efd\u6709\u9650\u516c\u53f8 -> \u8d22\u52a1\u603b\u76d1 -> \u9648\u5e0c\n# Answer:\nHeshi\n# Reasoning Path:\n\u6210\u90fd\u535a\u667a\u7ef4\u8baf\u4fe1\u606f\u6280\u672f\u80a1\u4efd\u6709\u9650\u516c\u53f8 -> \u4f9b\u5e94 -> \u4e09\u5168\u98df\u54c1\u80a1\u4efd\u6709\u9650\u516c\u53f8 -> \u4f9b\u5e94 -> \u91cd\u5e86\u5546\u793e\u65b0\u4e16\u7eaa\u767e\u8d27\u8fde\u9501\u7ecf\u8425\u6709\u9650\u516c\u53f8\n# Answer:\n\u91cd\u5e86\u5546\u793e\u65b0\u4e16\u7eaa\u767e\u8d27\u8fde\u9501\u7ecf\u8425\u6709\u9650\u516c\u53f8\n# Reasoning Path:\n\u6210\u90fd\u535a\u667a\u7ef4\u8baf\u4fe1\u606f\u6280\u672f\u80a1\u4efd\u6709\u9650\u516c\u53f8 -> \u4f9b\u5e94 -> \u4e09\u5168\u98df\u54c1\u80a1\u4efd\u6709\u9650\u516c\u53f8 -> \u8d22\u52a1\u603b\u76d1 -> \u9648\u5e0c\n# Answer:\n\u9648\u5e0c\n# Reasoning Path:\n\u6210\u90fd\u5e02 -> base.aareas.schema.administrative_area.administrative_parent -> Earth -> base.locations.planets.countries_within -> United States of America -> location.country.first_level_divisions -> New York -> organization.organization_scope.organizations_with_this_scope -> Exclaimer -> organization.organization.geographic_scope -> China -> organization.organization_founder.organizations_founded -> Baidu -> organization.organization.founders -> China Communications Corporation\n# Answer:\nChina Communications Corporation\n\nQuestion:\n\u6210\u90fd\u535a\u667a\u7ef4\u8baf\u4fe1\u606f\u6280\u672f\u80a1\u4efd\u6709\u9650\u516c\u53f8\u5411\u54ea\u5bb6\u516c\u53f8\u4f9b\u5e94\u4ea7\u54c1\uff1f?\n\nBased on the reasoning paths, please answer the given question. Please keep the answer as simple as possible and only return answers. Please return each answer in a new line."}
+
+Accuracy: 34.4 Hit: 34.4 F1: 26.21333333333333 Precision: 23.98873015873016 Recall: 34.4
+Completed k=10
+------------------------------------------
+==========================================
+All inductive reasoning tasks completed!
+==========================================
