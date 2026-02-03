@@ -25,7 +25,9 @@ K_VALUES=(3 5 10 )
 
 # 定义推理模型配置
 MODEL_NAME=gpt-4o
-N_THREAD=10
+N_THREAD=3  # 降低并发数以避免限流（原值：10）
+REQUEST_DELAY=0.5  # 每次请求前的延迟（秒）
+K_WAIT_TIME=20  # 不同k值测试之间的等待时间（秒）
 
 # MODEL_NAME=gpt-4o-mini
 # N_THREAD=10
@@ -70,10 +72,17 @@ for MODEL_PATH in "${MODEL_PATHS[@]}"; do
                 --model_name ${MODEL_NAME} \
                 --reasoning_path ${REASONING_PATH} \
                 --add_path True \
-                -n ${N_THREAD}
+                -n ${N_THREAD} \
+                --request_delay ${REQUEST_DELAY}
 
             echo "Completed k=$k"
             echo "------------------------------------------"
+
+            # 在不同k值测试之间增加等待时间，避免连续请求导致限流
+            if [ $k != ${K_VALUES[-1]} ]; then
+                echo "Waiting ${K_WAIT_TIME} seconds before next k value..."
+                sleep ${K_WAIT_TIME}
+            fi
         done
     done
 done

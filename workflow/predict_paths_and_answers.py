@@ -114,8 +114,8 @@ def main(args, LLM):
     input_builder = PathGenerationWithAnswerPromptBuilder(model.tokenizer, args.prompt_mode, index_path_length=args.index_path_length, undirected=args.undirected, add_rule=args.add_rule)
     
     # Save args file
-    with open(os.path.join(output_dir, 'args.txt'), 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    with open(os.path.join(output_dir, 'args.txt'), 'w', encoding='utf-8') as f:
+        json.dump(args.__dict__, f, indent=2, ensure_ascii=False)
     
     fout, processed_list =  get_output_file(os.path.join(output_dir, 'predictions.jsonl'), force=args.force)
     
@@ -135,16 +135,16 @@ def main(args, LLM):
             ):
                 if res is not None:
                     if args.debug:
-                        print(json.dumps(res))
-                    fout.write(json.dumps(res) + "\n")
+                        print(json.dumps(res, ensure_ascii=False))
+                    fout.write(json.dumps(res, ensure_ascii=False) + "\n")
                     fout.flush()
     else:
         for data in tqdm(dataset):
             res = prediction(data, processed_list, input_builder, model)
             if res is not None:
                 if args.debug:
-                    print(json.dumps(res))
-                fout.write(json.dumps(res) + "\n")
+                    print(json.dumps(res, ensure_ascii=False))
+                fout.write(json.dumps(res, ensure_ascii=False) + "\n")
                 fout.flush()
             else:
                 print("None result for: ", data["id"])

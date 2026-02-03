@@ -36,7 +36,7 @@ def get_output_file(path, force=False):
                             "line_number": line_num,
                             "error": str(e),
                             "raw_line": line.strip()
-                        }) + "\n")
+                        }, ensure_ascii=False) + "\n")
                     continue
         fout = open(path, "a")
         return fout, processed_results
@@ -207,7 +207,7 @@ def main(args, LLM):
                                 "line_number": line_num,
                                 "error": str(e),
                                 "raw_line": line.strip()
-                            }) + "\n")
+                            }, ensure_ascii=False) + "\n")
                         continue
             print(f"Successfully loaded {len(paths_datasets)} paths from {args.reasoning_path}")
             dataset = merge_path_result(
@@ -248,7 +248,7 @@ def main(args, LLM):
                             "line_number": line_num,
                             "error": str(e),
                             "raw_line": line.strip()
-                        }) + "\n")
+                        }, ensure_ascii=False) + "\n")
                     continue
         print(f"Successfully loaded {len(rule_dataset)} rules from {args.rule_path}")
         dataset = merge_rule_result(dataset, rule_dataset, args.n, args.filter_empty)
@@ -284,8 +284,8 @@ def main(args, LLM):
     model.prepare_for_inference()
 
     # Save args file
-    with open(os.path.join(output_dir, "args.txt"), "w") as f:
-        json.dump(args.__dict__, f, indent=2)
+    with open(os.path.join(output_dir, "args.txt"), "w", encoding="utf-8") as f:
+        json.dump(args.__dict__, f, indent=2, ensure_ascii=False)
 
     fout, processed_list = get_output_file(
         os.path.join(output_dir, f"predictions.jsonl"), force=args.force
@@ -306,16 +306,16 @@ def main(args, LLM):
             ):
                 if res is not None:
                     if args.debug:
-                        print(json.dumps(res))
-                    fout.write(json.dumps(res) + "\n")
+                        print(json.dumps(res, ensure_ascii=False))
+                    fout.write(json.dumps(res, ensure_ascii=False) + "\n")
                     fout.flush()
     else:
         for data in tqdm(dataset):
             res = make_prediction(data, args, processed_list, input_builder, model)
             if res is not None:
                 if args.debug:
-                    print(json.dumps(res))
-                fout.write(json.dumps(res) + "\n")
+                    print(json.dumps(res, ensure_ascii=False))
+                fout.write(json.dumps(res, ensure_ascii=False) + "\n")
                 fout.flush()
     fout.close()
 
