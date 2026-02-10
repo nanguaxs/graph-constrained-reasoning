@@ -7,12 +7,14 @@ tmp/
 save_models
 
 wandb/
-data
 
-offline_assets/
+
+offline_assets/models/
 
 # Claude 配置目录
 .claude/
 
 # 包含敏感信息的配置文件
 src/gendata/config.json
+
+# 模型文件夹

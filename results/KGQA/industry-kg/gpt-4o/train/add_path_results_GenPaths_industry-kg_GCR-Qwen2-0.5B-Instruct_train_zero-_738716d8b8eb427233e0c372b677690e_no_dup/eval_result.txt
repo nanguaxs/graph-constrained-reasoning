@@ -1,1 +1,0 @@
-Accuracy: 38.0 Hit: 38.0 F1: 37.0 Precision: 36.666666666666664 Recall: 38.0

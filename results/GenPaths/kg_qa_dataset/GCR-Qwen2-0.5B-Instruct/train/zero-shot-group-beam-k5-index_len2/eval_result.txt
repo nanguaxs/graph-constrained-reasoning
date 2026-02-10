@@ -1,1 +1,0 @@
-Accuracy: 35.0 Hit: 35.0 F1: 3.3 Precision: 2.1416666666666666 Recall: 7.5 Path F1: 30.53690476190476 Path Precision: 29.225 Path Recall: 35.0 Path Answer F1: 30.53690476190476 Path Answer Precision: 29.225 Path Answer Recall: 35.0

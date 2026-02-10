@@ -22,6 +22,19 @@ class GraphConstrainedDecodingModel(HfCausalModel):
         except Exception as e:
             print(e)
             return None
+
+        # 打印模型原始输出（文本形式）
+        print("=" * 80)
+        print("【模型原始输出 - 包含特殊token】:")
+        for idx, seq in enumerate(res.sequences):
+            decoded_with_special = self.tokenizer.decode(seq[input_ids.shape[1]:], skip_special_tokens=False)
+            print(f"Sequence {idx}: {repr(decoded_with_special)}")
+        print("\n【处理后输出 - 去除特殊token】:")
+        for idx, seq in enumerate(res.sequences):
+            decoded_without_special = self.tokenizer.decode(seq[input_ids.shape[1]:], skip_special_tokens=True)
+            print(f"Sequence {idx}: {decoded_without_special}")
+        print("=" * 80)
+
         response = []
         if len(res.sequences) == 1:
             return self.tokenizer.decode(res.sequences[0][input_ids.shape[1]:],skip_special_tokens=True)
