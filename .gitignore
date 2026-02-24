@@ -18,3 +18,8 @@ offline_assets/models/
 src/gendata/config.json
 
 # 模型文件夹
+
+# 大数据集文件（超过 GitHub 100MB 限制）
+COKG_QA/*.jsonl
+COKG_QA/KG/*.json
+offline_assets/datasets/
