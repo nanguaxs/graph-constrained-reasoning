@@ -55,6 +55,8 @@ class HfCausalModel(BaseLanguageModel):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.args.model_path, token=HF_TOKEN, trust_remote_code=True
         )
+        # 推理时手动添加特殊 token，与微调时保持一致，确保 <PATH> 和 </PATH> 有固定 token ID
+        self.tokenizer.add_special_tokens({'additional_special_tokens': ['<PATH>', '</PATH>']})
         self.model = AutoModelForCausalLM.from_pretrained(
             self.args.model_path,
             device_map="auto",
@@ -121,10 +123,23 @@ class HfCausalModel(BaseLanguageModel):
 
     def prepare_model_prompt(self, query):
         if self.args.chat_model:
-            chat_query = [
-                {"role": "user", "content": query}
-            ]
-            return self.tokenizer.apply_chat_template(chat_query, tokenize=False, add_generation_prompt=True)
+            # 原始实现：直接将 query 放入 user message
+            # chat_query = [
+            #     {"role": "user", "content": query}
+            # ]
+            # return self.tokenizer.apply_chat_template(chat_query, tokenize=False, add_generation_prompt=True)
+
+            # 新实现：若 query 以 <PATH> 结尾，将其从 user message 中移出，
+            # 追加到 assistant 回合开头，避免 chat template 将 <PATH> 夹在
+            # <|im_end|><|im_start|>assistant 之间导致 trie 约束失效
+            PATH_START = "<PATH>"
+            if query.endswith(PATH_START):
+                user_content = query[:-len(PATH_START)]
+                chat_query = [{"role": "user", "content": user_content}]
+                return self.tokenizer.apply_chat_template(chat_query, tokenize=False, add_generation_prompt=True) + PATH_START
+            else:
+                chat_query = [{"role": "user", "content": query}]
+                return self.tokenizer.apply_chat_template(chat_query, tokenize=False, add_generation_prompt=True)
         else:
             return query
     

@@ -9,7 +9,7 @@ save_models
 wandb/
 
 
-offline_assets/models/
+offline_assets/
 
 # Claude 配置目录
 .claude/
@@ -20,6 +20,4 @@ src/gendata/config.json
 # 模型文件夹
 
 # 大数据集文件（超过 GitHub 100MB 限制）
-COKG_QA/*.jsonl
-COKG_QA/KG/*.json
-offline_assets/datasets/
+COKG_QA/

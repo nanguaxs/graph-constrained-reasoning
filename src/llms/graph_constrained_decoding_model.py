@@ -23,7 +23,10 @@ class GraphConstrainedDecodingModel(HfCausalModel):
             print(e)
             return None
 
-        # 打印模型原始输出（文本形式）
+        # 打印输入与模型原始输出（文本形式）
+        print("=" * 80)
+        print("【LLM输入】:")
+        print(llm_input)
         print("=" * 80)
         print("【模型原始输出 - 包含特殊token】:")
         for idx, seq in enumerate(res.sequences):

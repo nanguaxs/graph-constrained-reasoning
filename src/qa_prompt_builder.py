@@ -197,6 +197,25 @@ class PathGenerationWithAnswerPromptBuilder(JointReasoningPromptBuilder):
 {choices}
 """
 
+class ChinesePathGenerationWithAnswerPromptBuilder(JointReasoningPromptBuilder):
+    ZERO_SHOT_PROMPT = """推理路径是知识图谱中连接问题主题实体与答案实体的三元组序列。给定一个问题，请从主题实体出发，在知识图谱中生成若干推理路径。
+
+# 问题：
+{question}
+# 主题实体：
+{entities}
+<PATH>"""
+    MCQ_ZERO_SHOT_PROMPT = """推理路径是知识图谱中连接问题主题实体与答案实体的三元组序列。给定一个问题，请从主题实体出发，在知识图谱中生成若干推理路径以回答该问题。
+
+# 问题：
+{question}
+# 主题实体：
+{entities}
+# 答案选项：
+{choices}
+"""
+
+
 class RetrievalPromptBuilder(GraphConstrainedPromptBuilder):
     entity_template = '''Question: {question}
 Please generate entities that are relevant to the question.''' 

@@ -10,7 +10,7 @@ from src import utils
 import json
 from multiprocessing import Pool
 from functools import partial
-from src.qa_prompt_builder import PathGenerationWithAnswerPromptBuilder
+from src.qa_prompt_builder import PathGenerationWithAnswerPromptBuilder, ChinesePathGenerationWithAnswerPromptBuilder
 
 def merge_rule_result(qa_dataset, rule_dataset, n_proc=1, filter_empty=False):
     question_to_rule = dict()
@@ -111,7 +111,8 @@ def main(args, LLM):
     
     print("Prepare pipline for inference...")
     model.prepare_for_inference()
-    input_builder = PathGenerationWithAnswerPromptBuilder(model.tokenizer, args.prompt_mode, index_path_length=args.index_path_length, undirected=args.undirected, add_rule=args.add_rule)
+    # input_builder = PathGenerationWithAnswerPromptBuilder(model.tokenizer, args.prompt_mode, index_path_length=args.index_path_length, undirected=args.undirected, add_rule=args.add_rule)
+    input_builder = ChinesePathGenerationWithAnswerPromptBuilder(model.tokenizer, args.prompt_mode, index_path_length=args.index_path_length, undirected=args.undirected, add_rule=args.add_rule)
     
     # Save args file
     with open(os.path.join(output_dir, 'args.txt'), 'w', encoding='utf-8') as f:
