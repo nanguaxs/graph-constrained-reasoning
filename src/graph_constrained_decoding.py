@@ -10,7 +10,6 @@ class GraphConstrainedDecoding:
         self.all_tokens = list(range(len(tokenizer)))
         self.constrained_flag = enable_constrained_by_default
         self.L_input = None
-        self.completed = False
 
     def check_constrained_flag(self, sent: torch.Tensor):
         # Check start
@@ -25,12 +24,16 @@ class GraphConstrainedDecoding:
             return True, last_start_tokens
         else:
             self.last_start_token = None
-            self.completed = True
             return False, len(sent)
     
     def allowed_tokens_fn(self, batch_id: int, sent: torch.Tensor):
-        if self.completed:
-            return [self.tokenizer.eos_token_id]
+        if self.end_token is not None and self.start_token is not None:
+            # 每个 beam 独立判断：自己的 sent 里 </PATH> 是否已出现
+            matched_start = torch.where(sent == self.start_token)[0]
+            if len(matched_start) > 0:
+                last_start = matched_start[-1]
+                if len(torch.where(sent[last_start:] == self.end_token)[0]) > 0:
+                    return [self.tokenizer.eos_token_id]
         constrained_flag = self.constrained_flag
         # Check if enter the constrained decoding
         if self.start_token is not None and self.end_token is not None:
