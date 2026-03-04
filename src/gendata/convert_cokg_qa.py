@@ -59,73 +59,92 @@ def find_shortest_paths_bfs(start_entities: List[str], target_entities: List[str
                             graph: List[List[str]], entity_index: Dict[str, List[int]],
                             max_depth: int = 5) -> Tuple[Set[int], Dict[str, int]]:
     """
-    使用BFS查找从起始实体到每个目标实体的最短路径上的所有三元组索引
-    确保所有答案实体的路径都被包含
+    使用BFS查找路径：
+    - 若最短路径 <= 2跳，则收集所有1跳和2跳路径
+    - 若最短路径 > 2跳，则只保留一条最短路径
 
     Args:
         start_entities: 起始实体列表（问题实体）
         target_entities: 目标实体列表（答案实体）
         graph: 完整图谱
         entity_index: 实体索引
-        max_depth: 最大搜索深度（默认5跳）
+        max_depth: 多跳路径的最大搜索深度（默认5跳）
 
     Returns:
-        (最短路径上的三元组索引集合, 每个答案实体的最短路径长度字典)
+        (路径上的三元组索引集合, 每个答案实体的最短路径长度字典)
     """
     path_triple_indices = set()
     target_set = set(target_entities)
-    answer_path_lengths = {}  # 记录每个答案实体的最短路径长度
+    answer_path_lengths = {}
 
-    # 对每个起始实体进行BFS搜索
     for start_entity in start_entities:
         if start_entity not in entity_index:
             continue
 
-        # BFS队列：(当前实体, 路径上的三元组索引列表)
+        # --- 阶段1：枚举所有1跳和2跳路径 ---
+        short_path_targets = {}  # {目标实体: [[路径三元组索引列表], ...]}
+
+        # 1跳路径
+        for triple_idx in entity_index.get(start_entity, []):
+            head, relation, tail = graph[triple_idx]
+            next_entity = tail if head == start_entity else head
+            if next_entity in target_set:
+                short_path_targets.setdefault(next_entity, []).append([triple_idx])
+
+        # 2跳路径
+        for triple_idx1 in entity_index.get(start_entity, []):
+            head1, relation1, tail1 = graph[triple_idx1]
+            mid_entity = tail1 if head1 == start_entity else head1
+            if mid_entity == start_entity:
+                continue
+            for triple_idx2 in entity_index.get(mid_entity, []):
+                if triple_idx2 == triple_idx1:
+                    continue
+                head2, relation2, tail2 = graph[triple_idx2]
+                next_entity = tail2 if head2 == mid_entity else head2
+                if next_entity in target_set and next_entity != start_entity:
+                    short_path_targets.setdefault(next_entity, []).append([triple_idx1, triple_idx2])
+
+        # 将所有短路径加入结果
+        for target_entity, paths in short_path_targets.items():
+            depth = min(len(p) for p in paths)
+            if target_entity not in answer_path_lengths or depth < answer_path_lengths[target_entity]:
+                answer_path_lengths[target_entity] = depth
+            for path in paths:
+                path_triple_indices.update(path)
+
+        # --- 阶段2：对未在2跳内找到的目标，用BFS找一条最短多跳路径 ---
+        remaining_targets = target_set - set(short_path_targets.keys())
+        if not remaining_targets:
+            continue
+
         queue = deque([(start_entity, [])])
         visited = {start_entity}
-        # 为每个目标实体记录到达它的最短路径深度和路径
-        target_paths = {}  # {目标实体: (最短深度, [路径列表])}
+        target_paths = {}  # {目标实体: (深度, 路径)}
 
         while queue:
             current_entity, path_indices = queue.popleft()
 
-            # 如果达到最大深度，跳过
             if len(path_indices) >= max_depth:
                 continue
 
-            # 检查是否到达目标实体
-            if current_entity in target_set:
+            if current_entity in remaining_targets:
                 if current_entity not in target_paths:
-                    # 第一次到达这个目标实体，记录深度和路径
-                    target_paths[current_entity] = (len(path_indices), [path_indices[:]])
-                elif len(path_indices) == target_paths[current_entity][0]:
-                    # 相同深度的另一条路径
-                    target_paths[current_entity][1].append(path_indices[:])
-                # 如果深度更大，不记录（已经有更短的路径了）
+                    target_paths[current_entity] = (len(path_indices), path_indices[:])
                 continue
 
-            # 扩展邻居
             if current_entity in entity_index:
                 for triple_idx in entity_index[current_entity]:
                     head, relation, tail = graph[triple_idx]
-
-                    # 找到邻居实体（不是当前实体的那个）
                     next_entity = tail if head == current_entity else head
-
                     if next_entity not in visited:
                         visited.add(next_entity)
-                        new_path = path_indices + [triple_idx]
-                        queue.append((next_entity, new_path))
+                        queue.append((next_entity, path_indices + [triple_idx]))
 
-        # 将所有目标实体的最短路径的三元组索引加入结果集
-        for target_entity, (depth, paths) in target_paths.items():
-            # 记录每个答案实体的最短路径长度（如果还没记录或者找到更短的）
+        for target_entity, (depth, path) in target_paths.items():
             if target_entity not in answer_path_lengths or depth < answer_path_lengths[target_entity]:
                 answer_path_lengths[target_entity] = depth
-
-            for path in paths:
-                path_triple_indices.update(path)
+            path_triple_indices.update(path)
 
     return path_triple_indices, answer_path_lengths
 
@@ -361,9 +380,9 @@ def main():
     # 定义文件路径
     kg_file = 'COKG_QA/KG/one_hop_KG.json'
     qa_files = {
-        'train': 'COKG_QA/QA/one_hop/train.txt',
-        'test': 'COKG_QA/QA/one_hop/test.txt',
-        'valid': 'COKG_QA/QA/one_hop/valid.txt'
+        'train': 'COKG_QA/QA/three_hop/train.txt',
+        'test': 'COKG_QA/QA/three_hop/test.txt',
+        'valid': 'COKG_QA/QA/three_hop/valid.txt'
     }
     # 每个数据集的样本数限制
     max_samples = {
@@ -371,7 +390,7 @@ def main():
         'test': 200,
         'valid': 100
     }
-    output_dir = 'COKG_QA'
+    output_dir = 'COKG_QA/threehop'
 
     # 确保输出目录存在
     os.makedirs(output_dir, exist_ok=True)

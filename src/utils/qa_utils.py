@@ -576,3 +576,157 @@ def eval_path_result_w_ans(predict_file, cal_f1=True, topk=-1):
     eval_result_path = predict_file.replace("predictions.jsonl", result_name)
     with open(eval_result_path, "w") as f:
         f.write(result_str)
+
+def eval_pure_path_result(predict_file, topk=-1):
+    """
+    评估纯路径输出（不包含 # Answer: 标记的输出）
+
+    计算指标：
+    1. Path F1/Precision/Recall - 路径与真实路径的匹配度
+    2. Path Answer F1/Precision/Recall - 路径中是否包含答案实体
+    3. Answer Hit - 路径中是否包含至少一个答案
+    4. Answer Acc - 路径中包含的答案比例
+
+    Args:
+        predict_file: predictions.jsonl 文件路径
+        topk: 只评估前 k 条预测，-1 表示评估所有
+    """
+    eval_name = (
+        "detailed_eval_result_top_{topk}.jsonl"
+        if topk > 0
+        else "detailed_eval_result.jsonl"
+    )
+    detailed_eval_file = predict_file.replace("predictions.jsonl", eval_name)
+    miss_file = predict_file.replace("predictions.jsonl", "miss_cases.jsonl")
+
+    # 指标列表
+    path_f1_list = []
+    path_precision_list = []
+    path_recall_list = []
+    path_ans_f1_list = []
+    path_ans_precision_list = []
+    path_ans_recall_list = []
+    ans_hit_list = []
+    ans_acc_list = []
+
+    with open(predict_file, "r", encoding='utf-8') as f, open(detailed_eval_file, "w", encoding='utf-8') as f2, open(miss_file, "w", encoding='utf-8') as f3:
+        for line in f:
+            try:
+                data = json.loads(line)
+            except:
+                print(f"Error parsing line: {line}")
+                continue
+
+            id = data["id"]
+            prediction = data["prediction"]
+            answer = list(set(data["ground_truth"]))
+            ground_truth_paths = data.get("ground_truth_paths", [])
+
+            # 提取预测路径（支持字符串或列表格式）
+            if isinstance(prediction, str):
+                predicted_paths = [p.strip() for p in prediction.split("\n") if p.strip()]
+            else:
+                predicted_paths = [str(p).strip() for p in prediction if str(p).strip()]
+
+            # 应用 topk 限制
+            if topk > 0:
+                predicted_paths = predicted_paths[:topk]
+
+            # 1. 评估路径与真实路径的匹配
+            if ground_truth_paths:
+                path_f1, path_precision, path_recall = eval_f1(
+                    predicted_paths, ground_truth_paths
+                )
+                path_f1_list.append(path_f1)
+                path_precision_list.append(path_precision)
+                path_recall_list.append(path_recall)
+            else:
+                path_f1, path_precision, path_recall = 0, 0, 0
+
+            # 2. 评估路径中是否包含答案实体
+            path_ans_f1, path_ans_precision, path_ans_recall = eval_f1(
+                predicted_paths, answer
+            )
+            path_ans_f1_list.append(path_ans_f1)
+            path_ans_precision_list.append(path_ans_precision)
+            path_ans_recall_list.append(path_ans_recall)
+
+            # 3. 评估答案命中率（所有路径拼接）
+            all_paths_str = " ".join(predicted_paths)
+            ans_hit = eval_hit(all_paths_str, answer)
+            ans_acc = eval_acc(all_paths_str, answer)
+            ans_hit_list.append(ans_hit)
+            ans_acc_list.append(ans_acc)
+
+            # 写入详细结果
+            result_item = {
+                "id": id,
+                "prediction": predicted_paths,
+                "ground_truth": answer,
+                "ans_hit": ans_hit,
+                "ans_acc": ans_acc,
+                "path_ans_f1": path_ans_f1,
+                "path_ans_precision": path_ans_precision,
+                "path_ans_recall": path_ans_recall,
+            }
+
+            if ground_truth_paths:
+                result_item.update({
+                    "path_f1": path_f1,
+                    "path_precision": path_precision,
+                    "path_recall": path_recall,
+                })
+
+            f2.write(json.dumps(result_item, ensure_ascii=False) + "\n")
+
+            # 保存没有hit的case
+            if ans_hit == 0:
+                miss_item = {
+                    "id": id,
+                    "question": data.get("question", ""),
+                    "prediction": predicted_paths,
+                    "ground_truth": answer,
+                    "ground_truth_paths": ground_truth_paths,
+                    "ans_hit": ans_hit,
+                    "ans_acc": ans_acc,
+                    "path_ans_f1": path_ans_f1,
+                    "path_ans_precision": path_ans_precision,
+                    "path_ans_recall": path_ans_recall,
+                }
+                if ground_truth_paths:
+                    miss_item.update({
+                        "path_f1": path_f1,
+                        "path_precision": path_precision,
+                        "path_recall": path_recall,
+                    })
+                f3.write(json.dumps(miss_item, ensure_ascii=False) + "\n")
+
+    # 计算平均值并输出
+    n = len(ans_hit_list)
+    if n == 0:
+        print("No valid predictions found!")
+        return
+
+    result_parts = [
+        f"Answer Hit: {sum(ans_hit_list) * 100 / n:.2f}",
+        f"Answer Acc: {sum(ans_acc_list) * 100 / n:.2f}",
+        f"Path Answer F1: {sum(path_ans_f1_list) * 100 / n:.2f}",
+        f"Path Answer Precision: {sum(path_ans_precision_list) * 100 / n:.2f}",
+        f"Path Answer Recall: {sum(path_ans_recall_list) * 100 / n:.2f}",
+    ]
+
+    if path_f1_list:
+        result_parts.extend([
+            f"Path F1: {sum(path_f1_list) * 100 / len(path_f1_list):.2f}",
+            f"Path Precision: {sum(path_precision_list) * 100 / len(path_precision_list):.2f}",
+            f"Path Recall: {sum(path_recall_list) * 100 / len(path_recall_list):.2f}",
+        ])
+
+    result_str = " | ".join(result_parts)
+    print(result_str)
+
+    # 保存结果
+    result_name = "eval_result_top_{topk}.txt" if topk > 0 else "eval_result.txt"
+    eval_result_path = predict_file.replace("predictions.jsonl", result_name)
+    with open(eval_result_path, "w", encoding='utf-8') as f:
+        f.write(result_str)

@@ -5,7 +5,7 @@ from tqdm import tqdm
 from src.llms import get_registed_model
 import os
 from datasets import load_dataset, Dataset
-from src.utils.qa_utils import eval_path_result_w_ans
+from src.utils.qa_utils import eval_path_result_w_ans,eval_pure_path_result
 from src import utils
 import json
 from multiprocessing import Pool
@@ -151,7 +151,8 @@ def main(args, LLM):
                 print("None result for: ", data["id"])
     fout.close()
             
-    eval_path_result_w_ans(os.path.join(output_dir, 'predictions.jsonl'))
+    # eval_path_result_w_ans(os.path.join(output_dir, 'predictions.jsonl'))
+    eval_pure_path_result(os.path.join(output_dir, 'predictions.jsonl'))
     
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
