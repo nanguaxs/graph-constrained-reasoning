@@ -1,5 +1,6 @@
-from src.graph_constrained_decoding import GraphConstrainedDecoding
+from src.graph_constrained_decoding import GraphConstrainedDecoding, PathEndStoppingCriteria
 from .base_hf_causal_model import HfCausalModel
+from transformers import StoppingCriteriaList
 
 class GraphConstrainedDecodingModel(HfCausalModel):
     def __init__(self, args):
@@ -10,12 +11,21 @@ class GraphConstrainedDecodingModel(HfCausalModel):
         input_ids = inputs.input_ids.to(self.model.device)
         attention_mask = inputs.attention_mask.to(self.model.device)
         gcr = GraphConstrainedDecoding(self.tokenizer, trie, start_token_ids, end_token_ids, enable_constrained_by_default)
+
+        # 创建 StoppingCriteria 来在 </PATH> 后停止生成
+        stopping_criteria = None
+        if start_token_ids is not None and end_token_ids is not None:
+            stopping_criteria = StoppingCriteriaList([
+                PathEndStoppingCriteria(start_token_ids, end_token_ids)
+            ])
+
         try:
             res = self.model.generate(
                 input_ids = input_ids,
                 attention_mask = attention_mask,
                 generation_config=self.generation_cfg,
                 prefix_allowed_tokens_fn=gcr.allowed_tokens_fn,
+                stopping_criteria=stopping_criteria,
                 return_dict_in_generate=True,
                 pad_token_id=self.tokenizer.eos_token_id
             )

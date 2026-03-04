@@ -1,5 +1,23 @@
 from typing import List
 import torch
+from transformers import StoppingCriteria
+
+class PathEndStoppingCriteria(StoppingCriteria):
+    """在检测到 </PATH> token 后停止生成"""
+    def __init__(self, start_token_id, end_token_id):
+        self.start_token_id = start_token_id
+        self.end_token_id = end_token_id
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        # 检查每个 beam 是否都已经生成了 </PATH>
+        for beam_tokens in input_ids:
+            matched_start = torch.where(beam_tokens == self.start_token_id)[0]
+            if len(matched_start) > 0:
+                last_start = matched_start[-1]
+                # 如果在最后一个 <PATH> 之后找到了 </PATH>，这个 beam 应该停止
+                if len(torch.where(beam_tokens[last_start:] == self.end_token_id)[0]) == 0:
+                    return False  # 还有 beam 没有结束
+        return True  # 所有 beam 都已经生成了 </PATH>
 
 class GraphConstrainedDecoding:
     def __init__(self, tokenizer, trie, start_token_ids = None, end_token_ids = None, enable_constrained_by_default = False):

@@ -3,7 +3,7 @@ import torch
 from .base_language_model import BaseLanguageModel
 import os
 import dotenv
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig, BitsAndBytesConfig
 from peft import PeftConfig
 
 dotenv.load_dotenv()
@@ -57,13 +57,20 @@ class HfCausalModel(BaseLanguageModel):
         )
         # 推理时手动添加特殊 token，与微调时保持一致，确保 <PATH> 和 </PATH> 有固定 token ID
         self.tokenizer.add_special_tokens({'additional_special_tokens': ['<PATH>', '</PATH>']})
+
+        # 配置量化参数
+        quantization_config = None
+        if self.args.quant == "8bit":
+            quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+        elif self.args.quant == "4bit":
+            quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+
         self.model = AutoModelForCausalLM.from_pretrained(
             self.args.model_path,
             device_map="auto",
             token=HF_TOKEN,
             torch_dtype=self.DTYPE.get(self.args.dtype, None),
-            load_in_8bit=self.args.quant == "8bit",
-            load_in_4bit=self.args.quant == "4bit",
+            quantization_config=quantization_config,
             trust_remote_code=True,
             attn_implementation=self.args.attn_implementation,
         )
@@ -73,8 +80,7 @@ class HfCausalModel(BaseLanguageModel):
                 device_map="auto",
                 token=HF_TOKEN,
                 torch_dtype=self.DTYPE.get(self.args.dtype, None),
-                load_in_8bit=self.args.quant == "8bit",
-                load_in_4bit=self.args.quant == "4bit",
+                quantization_config=quantization_config,
                 trust_remote_code=True,
                 attn_implementation=self.args.attn_implementation,
             )
@@ -85,9 +91,13 @@ class HfCausalModel(BaseLanguageModel):
         try:
             self.generation_cfg = GenerationConfig.from_pretrained(self.args.model_path)
         except:
-            # Load from PeftModel
-            sft_peft_config = PeftConfig.from_pretrained(self.args.model_path)
-            self.generation_cfg = GenerationConfig.from_pretrained(sft_peft_config.base_model_name_or_path)
+            # 尝试从 PeftModel 加载
+            try:
+                sft_peft_config = PeftConfig.from_pretrained(self.args.model_path)
+                self.generation_cfg = GenerationConfig.from_pretrained(sft_peft_config.base_model_name_or_path)
+            except:
+                # 如果都失败，使用默认配置
+                self.generation_cfg = GenerationConfig()
             
         self.generation_cfg.max_new_tokens = self.args.max_new_tokens
         self.generation_cfg.return_dict_in_generate = (True,)

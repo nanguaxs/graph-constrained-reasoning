@@ -7,6 +7,7 @@ registed_language_models = {
     'gpt': ChatGPT,
     'others': HfCausalModel,
     'gcr': GraphConstrainedDecodingModel,
+    'qwen': GraphConstrainedDecodingModel,
 }
 
 def get_registed_model(model_name) -> BaseLanguageModel:
