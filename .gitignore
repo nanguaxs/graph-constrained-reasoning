@@ -14,7 +14,7 @@ offline_assets/
 
 # Claude 配置目录
 .claude/
-
+/finetune/output
 # 包含敏感信息的配置文件
 src/gendata/config.json
 

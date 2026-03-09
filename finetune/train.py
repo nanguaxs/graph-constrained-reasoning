@@ -10,16 +10,18 @@ from dataset import PathGenerationDataset
 from reward import PathRewardCalculator
 from grpo_trainer import GRPOTrainer
 
+
 def main():
     # 加载配置
     config = GRPOConfig()
+
 
     # 加载模型和分词器
     print(f"加载模型: {config.model_name}")
     tokenizer = AutoTokenizer.from_pretrained(config.model_name, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
         config.model_name,
-        torch_dtype=torch.bfloat16,
+        dtype=torch.bfloat16,
         device_map="auto",
         trust_remote_code=True
     )
@@ -60,7 +62,12 @@ def main():
 
     # 初始化奖励计算器
     print(f"使用嵌入模型 API: {config.embedding_api_url}")
-    reward_calculator = PathRewardCalculator(config.embedding_api_url)
+    print(f"嵌入模型名称: {config.embedding_model_name}")
+    reward_calculator = PathRewardCalculator(
+        config.embedding_api_url,
+        config.embedding_model_name,
+        config.embedding_api_key,
+    )
 
     # 初始化优化器
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
@@ -75,7 +82,7 @@ def main():
 
     # 保存模型
     print(f"保存模型到: {config.output_dir}")
-    model.save_pretrained(config.output_dir)
+    model.save_pretrained(config.output_dir, save_embedding_layers=True)
     tokenizer.save_pretrained(config.output_dir)
     print("训练完成！")
 

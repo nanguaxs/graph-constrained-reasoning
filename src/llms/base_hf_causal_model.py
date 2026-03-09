@@ -11,6 +11,7 @@ dotenv.load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 
+
 class HfCausalModel(BaseLanguageModel):
     DTYPE = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
 
@@ -69,7 +70,7 @@ class HfCausalModel(BaseLanguageModel):
             self.args.model_path,
             device_map="auto",
             token=HF_TOKEN,
-            torch_dtype=self.DTYPE.get(self.args.dtype, None),
+            dtype=self.DTYPE.get(self.args.dtype, None),
             quantization_config=quantization_config,
             trust_remote_code=True,
             attn_implementation=self.args.attn_implementation,
@@ -79,7 +80,7 @@ class HfCausalModel(BaseLanguageModel):
                 self.args.assistant_model_path,
                 device_map="auto",
                 token=HF_TOKEN,
-                torch_dtype=self.DTYPE.get(self.args.dtype, None),
+                dtype=self.DTYPE.get(self.args.dtype, None),
                 quantization_config=quantization_config,
                 trust_remote_code=True,
                 attn_implementation=self.args.attn_implementation,
