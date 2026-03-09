@@ -26,18 +26,17 @@ class GRPOConfig:
     batch_size: int = 1
     gradient_accumulation_steps: int = 8
 
-    # 数据配置
-    data_path: str = "offline_assets/datasets/onedata/train_dataset.json"
+    # 数据配置COKG_QA\threehop
+    #data_path: str = "offline_assets/datasets/onedata/train_dataset.json"
+    data_path: str = "COKG_QA/threehop"
     train_split: str = "train"
-    index_path_length: int = 2
+    index_path_length: int = 3
     undirected: bool = False
 
     # 奖励配置
     embedding_api_url: str = "https://yunwu.ai/v1/embeddings"
     embedding_model_name: str = "text-embedding-3-large"
     embedding_api_key: str = "sk-5j4c26Aw7VS26K8PWz7Ayqp5zsjWo1J2krY4vzTiMDBiXlJ2"
-    expected_hops: int = 2
-
     # 保存配置
     output_dir: str = None  # 将在 __post_init__ 中根据模型名称设置
     save_steps: int = 500

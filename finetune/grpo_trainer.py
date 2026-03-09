@@ -174,7 +174,7 @@ class GRPOTrainer:
                 generated_texts,
                 sample["question"],
                 sample["a_entity"],
-                self.config.expected_hops,
+                sample["ground_paths"],
             )
             print(f"[DEBUG][train_step] rewards={rewards.tolist()}, advantages={advantages.tolist()}")
 
