@@ -1,5 +1,6 @@
 *.pyc
 .vscode/
+.vscode-server/
 logs
 
 tmp/

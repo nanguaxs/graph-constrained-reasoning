@@ -13,17 +13,19 @@ export HF_HUB_OFFLINE=1
 
 DATA_PATH="./offline_assets/datasets"
 # DATA_LIST="RoG-webqsp RoG-cwq"
-DATA_LIST="COKG_QA"
-SPLIT="train"
+DATA_LIST="onedata"
+SPLIT="test"
 INDEX_LEN=2
 ATTN_IMP=flash_attention_2
 
-MODEL_PATH="./offline_assets/models/Qwen_Qwen3-0.6B"
+MODEL_PATH="./offline_assets/models/Qwen3.5-0.8B"
+#GCR-Qwen2-0.5B-Instruct
+#Qwen3.5-0.8B
 MODEL_NAME=$(basename "$MODEL_PATH")
 
-K="2" # 3 5 10 20
+K="8" # 3 5 10 20
 for DATA in ${DATA_LIST}; do
   for k in $K; do
-    python workflow/predict_paths_and_answers.py --data_path ${DATA_PATH} --d ${DATA} --split ${SPLIT} --index_path_length ${INDEX_LEN} --model_name ${MODEL_NAME} --model_path ${MODEL_PATH} --k ${k} --prompt_mode zero-shot --generation_mode group-beam --attn_implementation ${ATTN_IMP}
+    python workflow/predict_paths_and_answers.py --data_path ${DATA_PATH} --d ${DATA} --split ${SPLIT} --index_path_length ${INDEX_LEN} --model_name ${MODEL_NAME} --model_path ${MODEL_PATH} --k ${k} --prompt_mode zero-shot --generation_mode beam --attn_implementation ${ATTN_IMP}
   done
 done
