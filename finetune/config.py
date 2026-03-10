@@ -14,10 +14,10 @@ class GRPOConfig:
     target_modules: list = None
 
     # 生成配置
-    generation_mode: str = "beam_sample"
-    num_generations: int = 8
-    num_beams: int = 8
-    max_new_tokens: int = 128
+    generation_mode: str = "beam_search"
+    num_generations: int = 12
+    num_beams: int = 3
+    max_new_tokens: int = 256
     temperature: float = 0.8
     top_p: float = 0.9
     top_k: int = 0
@@ -32,13 +32,13 @@ class GRPOConfig:
 
     # 训练配置
     learning_rate: float = 2e-6
-    num_epochs: int = 1
-    batch_size: int = 1
+    num_epochs: int = 2
+    batch_size: int = 8
     gradient_accumulation_steps: int = 8
 
     # 数据配置
-    # data_path: str = "offline_assets/datasets/onedata/train_dataset.json"
-    data_path: str = "COKG_QA/threehop"
+    data_path: str = "offline_assets/datasets/COKG_QA"
+    #data_path: str = "COKG_QA/threehop"
     train_split: str = "train"
     index_path_length: int = 3
     undirected: bool = False
