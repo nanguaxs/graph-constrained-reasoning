@@ -1,90 +1,102 @@
-"""GRPO 训练启动脚本"""
+﻿"""GRPO 训练启动脚本。"""
+import os
+
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import LoraConfig, get_peft_model
 from torch.utils.data import DataLoader
-import os
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from config import GRPOConfig
 from dataset import PathGenerationDataset
-from reward import PathRewardCalculator
 from grpo_trainer import GRPOTrainer
+from logging_utils import configure_logging, get_logger
+from reward import PathRewardCalculator
+
+
+logger = get_logger("train")
+
+
+def log_config_summary(config):
+    logger.info(
+        "训练配置: model=%s data=%s split=%s mode=%s num_generations=%s num_beams=%s temperature=%.3f top_p=%.3f top_k=%s log_level=%s",
+        config.model_name,
+        config.data_path,
+        config.train_split,
+        config.generation_mode,
+        config.num_generations,
+        config.num_beams,
+        config.temperature,
+        config.top_p,
+        config.top_k,
+        config.log_level,
+    )
 
 
 def main():
-    # 加载配置
     config = GRPOConfig()
+    configure_logging(config.log_level)
+    log_config_summary(config)
 
-
-    # 加载模型和分词器
-    print(f"加载模型: {config.model_name}")
+    logger.info("加载模型: %s", config.model_name)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
         config.model_name,
         dtype=torch.bfloat16,
         device_map="auto",
-        trust_remote_code=True
+        trust_remote_code=True,
     )
 
-    # 添加特殊 token
     special_tokens = {"additional_special_tokens": ["<PATH>", "</PATH>"]}
     tokenizer.add_special_tokens(special_tokens)
     model.resize_token_embeddings(len(tokenizer))
 
-    # 配置 LoRA
-    print("配置 LoRA")
+    logger.info("配置 LoRA")
     lora_config = LoraConfig(
         r=config.lora_r,
         lora_alpha=config.lora_alpha,
         target_modules=config.target_modules,
         lora_dropout=config.lora_dropout,
         bias="none",
-        task_type="CAUSAL_LM"
+        task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
-    # 加载数据集
-    print(f"加载数据集: {config.data_path}")
+    logger.info("加载数据集: %s", config.data_path)
     train_dataset = PathGenerationDataset(
         config.data_path,
         config.train_split,
         tokenizer,
         config.index_path_length,
-        config.undirected
+        config.undirected,
     )
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.batch_size,
         shuffle=True,
-        collate_fn=train_dataset.collate_fn
+        collate_fn=train_dataset.collate_fn,
     )
 
-    # 初始化奖励计算器
-    print(f"使用嵌入模型 API: {config.embedding_api_url}")
-    print(f"嵌入模型名称: {config.embedding_model_name}")
+    logger.info("使用嵌入模型 API: %s", config.embedding_api_url)
+    logger.info("嵌入模型名称: %s", config.embedding_model_name)
     reward_calculator = PathRewardCalculator(
         config.embedding_api_url,
         config.embedding_model_name,
         config.embedding_api_key,
     )
 
-    # 初始化优化器
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-
-    # 初始化训练器
     trainer = GRPOTrainer(model, tokenizer, reward_calculator, optimizer, config)
 
-    # 开始训练
-    print("开始训练")
+    logger.info("开始训练")
     os.makedirs(config.output_dir, exist_ok=True)
     trainer.train(train_loader, config.num_epochs)
 
-    # 保存模型
-    print(f"保存模型到: {config.output_dir}")
+    logger.info("保存模型到: %s", config.output_dir)
     model.save_pretrained(config.output_dir, save_embedding_layers=True)
     tokenizer.save_pretrained(config.output_dir)
-    print("训练完成！")
+    logger.info("训练完成")
+
 
 if __name__ == "__main__":
     main()

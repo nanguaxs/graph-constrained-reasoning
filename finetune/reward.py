@@ -1,9 +1,14 @@
-"""奖励函数：答案命中 + 真值路径匹配 + 动态绕路惩罚 + 语义辅助项"""
+﻿"""奖励函数：答案命中 + 真值路径匹配 + 动态绕路惩罚 + 语义辅助项。"""
 import re
 from typing import Sequence
 
 import requests
 import torch
+
+from logging_utils import get_logger
+
+
+logger = get_logger("reward")
 
 
 class PathRewardCalculator:
@@ -48,14 +53,13 @@ class PathRewardCalculator:
 
     def parse_path_segments(self, path_text):
         """将路径文本解析为 [实体, 关系, 实体, ...] 的分段列表。"""
-        print(f"\n[DEBUG] 原始路径文本: {repr(path_text)}")
+        logger.debug("原始路径文本: %r", path_text)
 
         if not path_text:
-            print("[DEBUG] 路径文本为空")
+            logger.debug("路径文本为空")
             return []
 
         normalized_text = str(path_text).strip()
-
         if "<PATH>" in normalized_text:
             normalized_text = normalized_text.rsplit("<PATH>", 1)[-1]
 
@@ -77,9 +81,8 @@ class PathRewardCalculator:
 
         normalized_text = re.sub(r"\s+", " ", normalized_text).strip()
         path_segments = [segment.strip() for segment in normalized_text.split("->") if segment.strip()]
-
-        print(f"[DEBUG] 规范化路径文本: {repr(normalized_text)}")
-        print(f"[DEBUG] 路径分段结果: {path_segments}")
+        logger.debug("规范化路径文本: %r", normalized_text)
+        logger.debug("路径分段结果: %s", path_segments)
         return path_segments
 
     def build_path_info(self, path_text):
@@ -89,11 +92,11 @@ class PathRewardCalculator:
             return None
 
         if len(path_segments) % 2 == 0:
-            print("[DEBUG] 路径分段数为偶数，说明路径停在关系上")
+            logger.debug("路径分段数为偶数，说明路径停在关系上")
             return None
 
         if len(path_segments) < 3:
-            print("[DEBUG] 路径分段过短，无法构成完整三元组")
+            logger.debug("路径分段过短，无法构成完整三元组")
             return None
 
         triples = []
@@ -114,15 +117,14 @@ class PathRewardCalculator:
             "hops": len(triples),
             "final_entity": final_entity,
         }
-        print(f"[DEBUG] 提取的终点实体: {repr(final_entity)}")
-        print(f"[DEBUG] 解析出的三元组: {triples}")
+        logger.debug("提取的终点实体: %r", final_entity)
+        logger.debug("解析出的三元组: %s", triples)
         return path_info
 
     def parse_ground_paths(self, ground_paths):
         """解析真值路径集合，忽略无效路径。"""
         if ground_paths is None:
             return []
-
         if isinstance(ground_paths, str):
             ground_paths = [ground_paths]
 
@@ -206,7 +208,7 @@ class PathRewardCalculator:
             generated_emb = self.get_embeddings([generated_info["text"]])
             ground_embs = self.get_embeddings(ground_texts)
         except Exception as exc:
-            print(f"[奖励计算] 语义辅助项计算失败，已退化为 0: {exc}")
+            logger.warning("语义辅助项计算失败，已退化为 0: %s", exc)
             return 0.0, None
 
         similarities = torch.cosine_similarity(generated_emb, ground_embs, dim=1)
@@ -222,11 +224,11 @@ class PathRewardCalculator:
         """从路径文本中提取终点实体。"""
         path_info = self.build_path_info(path_text)
         if path_info is None:
-            print("[DEBUG] 未解析出有效路径，终点实体为 None\n")
+            logger.debug("未解析出有效路径，终点实体为 None")
             return None
 
         final_entity = path_info["final_entity"]
-        print(f"[DEBUG] 提取的终点实体: {repr(final_entity)}\n")
+        logger.debug("提取的终点实体: %r", final_entity)
         return final_entity
 
     def count_hops(self, path_text):
@@ -238,14 +240,11 @@ class PathRewardCalculator:
 
     def calculate_reward(self, generated_path, question, a_entity, ground_paths):
         """计算单条路径的奖励。"""
-        print(f"\n{'=' * 60}")
-        print(f"[奖励计算] 生成路径: {generated_path}")
-        print(f"[奖励计算] 问题: {question}")
-        print(f"[奖励计算] 目标答案: {a_entity}")
+        logger.debug("开始奖励计算: path=%s | question=%s", generated_path, question)
 
         generated_info = self.build_path_info(generated_path)
         if generated_info is None:
-            print("[奖励计算] 未解析出有效路径，返回 -1.0")
+            logger.debug("未解析出有效路径，返回 -1.0")
             return -1.0
 
         if isinstance(a_entity, str):
@@ -254,10 +253,7 @@ class PathRewardCalculator:
 
         parsed_ground_paths = self.parse_ground_paths(ground_paths)
         answer_reward = 5.0 if generated_info["final_entity"] in answer_entities else 0.0
-        if answer_reward > 0:
-            print("[奖励计算] [HIT] 终点命中答案，答案奖励 = 5.0")
-        else:
-            print("[奖励计算] [MISS] 终点未命中答案，答案奖励 = 0.0")
+        logger.debug("答案奖励: %.4f", answer_reward)
 
         reference_ground_info, match_components = self.select_reference_ground_path(
             generated_info,
@@ -266,22 +262,19 @@ class PathRewardCalculator:
         if match_components is None:
             path_match_reward = 0.0
             detour_reward = 0.0
-            print("[奖励计算] 无可用真值路径，结构匹配分与绕路惩罚均记为 0")
+            logger.debug("无可用真值路径，结构匹配分与绕路惩罚均记为 0")
         else:
             path_match_reward = match_components["match_score"]
             extra_hops = max(0, generated_info["hops"] - reference_ground_info["hops"])
             detour_reward = -0.5 * extra_hops
-            print(f"[奖励计算] 参照真值路径: {reference_ground_info['text']}")
-            print(
-                "[奖励计算] 结构匹配分: "
-                f"exact={match_components['exact']:.2f}, "
-                f"prefix_ratio={match_components['prefix_ratio']:.2f}, "
-                f"rel_sim={match_components['rel_sim']:.2f}, "
-                f"R_path_match={path_match_reward:.4f}"
-            )
-            print(
-                f"[奖励计算] 跳数: 生成={generated_info['hops']}, 真值={reference_ground_info['hops']}, "
-                f"extra_hops={extra_hops}, R_detour={detour_reward:.4f}"
+            logger.debug(
+                "结构匹配: ref=%s exact=%.2f prefix_ratio=%.2f rel_sim=%.2f path_match=%.4f detour=%.4f",
+                reference_ground_info["text"],
+                match_components["exact"],
+                match_components["prefix_ratio"],
+                match_components["rel_sim"],
+                path_match_reward,
+                detour_reward,
             )
 
         semantic_reward, semantic_details = self.compute_semantic_reward(
@@ -289,17 +282,17 @@ class PathRewardCalculator:
             parsed_ground_paths,
         )
         if semantic_details is None:
-            print("[奖励计算] 语义辅助项: 0.0000")
+            logger.debug("语义辅助项: 0.0000")
         else:
-            print(f"[奖励计算] 语义参考真值路径: {semantic_details['best_ground_text']}")
-            print(
-                f"[奖励计算] 语义相似度: {semantic_details['best_similarity']:.4f}, "
-                f"R_semantic={semantic_reward:.4f}"
+            logger.debug(
+                "语义辅助项: ref=%s similarity=%.4f semantic=%.4f",
+                semantic_details["best_ground_text"],
+                semantic_details["best_similarity"],
+                semantic_reward,
             )
 
         reward = answer_reward + path_match_reward + detour_reward + semantic_reward
-        print(f"[奖励计算] 最终奖励: {reward:.4f}")
-        print(f"{'=' * 60}\n")
+        logger.debug("最终奖励: %.4f", reward)
         return reward
 
     def calculate_group_rewards(self, generated_paths, question, a_entity, ground_paths):

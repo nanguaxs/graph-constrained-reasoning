@@ -1,4 +1,4 @@
-﻿"""GRPO 训练器：群体相对策略优化"""
+﻿"""GRPO 训练器：群体相对策略优化。"""
 import sys
 
 import torch
@@ -7,8 +7,13 @@ from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 from transformers import StoppingCriteriaList
 
+from logging_utils import get_logger
+
 sys.path.append('..')
 from src.graph_constrained_decoding import GraphConstrainedDecoding, PathEndStoppingCriteria
+
+
+logger = get_logger("trainer")
 
 
 class GRPOTrainer:
@@ -19,9 +24,10 @@ class GRPOTrainer:
         self.optimizer = optimizer
         self.config = config
         self.device = model.device
+        self._warned_num_beams = False
 
     def prepare_model_prompt(self, query):
-        """处理 chat 模型的提示格式（与推理时保持一致）。"""
+        """处理 chat 模型的提示格式，与推理阶段保持一致。"""
         if hasattr(self.tokenizer, 'chat_template') and self.tokenizer.chat_template:
             path_start = "<PATH>"
             if query.endswith(path_start):
@@ -52,8 +58,66 @@ class GRPOTrainer:
             attention_mask[index, :length] = 1
         return attention_mask
 
+    def _resolve_num_beams(self, num_generations):
+        effective_num_beams = max(self.config.num_beams, num_generations)
+        if effective_num_beams != self.config.num_beams and not self._warned_num_beams:
+            logger.warning(
+                "generation_mode=%s 时 num_beams=%s 小于 num_generations=%s，已自动提升到 %s",
+                self.config.generation_mode,
+                self.config.num_beams,
+                num_generations,
+                effective_num_beams,
+            )
+            self._warned_num_beams = True
+        return effective_num_beams
+
+    def _build_generation_kwargs(self, gcr, stopping_criteria, num_generations):
+        generation_kwargs = {
+            "max_new_tokens": self.config.max_new_tokens,
+            "num_return_sequences": num_generations,
+            "prefix_allowed_tokens_fn": gcr.allowed_tokens_fn,
+            "stopping_criteria": stopping_criteria,
+            "pad_token_id": self.tokenizer.eos_token_id,
+            "return_dict_in_generate": True,
+            "output_scores": True,
+        }
+
+        if self.config.generation_mode == "sampling":
+            generation_kwargs.update(
+                {
+                    "do_sample": True,
+                    "temperature": self.config.temperature,
+                }
+            )
+        elif self.config.generation_mode == "beam_search":
+            generation_kwargs.update(
+                {
+                    "do_sample": False,
+                    "num_beams": self._resolve_num_beams(num_generations),
+                    "early_stopping": self.config.early_stopping,
+                }
+            )
+        elif self.config.generation_mode == "beam_sample":
+            generation_kwargs.update(
+                {
+                    "do_sample": True,
+                    "num_beams": self._resolve_num_beams(num_generations),
+                    "temperature": self.config.temperature,
+                    "early_stopping": self.config.early_stopping,
+                }
+            )
+        else:
+            raise ValueError(f"不支持的 generation_mode: {self.config.generation_mode}")
+
+        if generation_kwargs.get("do_sample"):
+            generation_kwargs["top_p"] = self.config.top_p
+            if self.config.top_k > 0:
+                generation_kwargs["top_k"] = self.config.top_k
+
+        return generation_kwargs
+
     def generate_paths_once(self, input_query, trie, num_generations):
-        """单轮采样一组路径。"""
+        """按配置的生成模式单轮生成一组路径。"""
         formatted_query = self.prepare_model_prompt(input_query)
         inputs = self.tokenizer(formatted_query, return_tensors="pt", add_special_tokens=False)
         input_ids = inputs.input_ids.to(self.device)
@@ -63,19 +127,22 @@ class GRPOTrainer:
         end_token_ids = self.tokenizer.convert_tokens_to_ids("</PATH>")
         gcr = GraphConstrainedDecoding(self.tokenizer, trie, start_token_ids, end_token_ids, True)
         stopping_criteria = StoppingCriteriaList([PathEndStoppingCriteria(start_token_ids, end_token_ids)])
+        generation_kwargs = self._build_generation_kwargs(gcr, stopping_criteria, num_generations)
+
+        logger.debug(
+            "生成参数: mode=%s, num_return_sequences=%s, num_beams=%s, temperature=%.3f, top_p=%.3f, top_k=%s",
+            self.config.generation_mode,
+            num_generations,
+            generation_kwargs.get("num_beams", 1),
+            generation_kwargs.get("temperature", 1.0),
+            generation_kwargs.get("top_p", 1.0),
+            generation_kwargs.get("top_k", 0),
+        )
 
         outputs = self.model.generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            max_new_tokens=self.config.max_new_tokens,
-            num_return_sequences=num_generations,
-            do_sample=True,
-            temperature=self.config.temperature,
-            prefix_allowed_tokens_fn=gcr.allowed_tokens_fn,
-            stopping_criteria=stopping_criteria,
-            pad_token_id=self.tokenizer.eos_token_id,
-            return_dict_in_generate=True,
-            output_scores=True,
+            **generation_kwargs,
         )
 
         prompt_len = input_ids.shape[1]
@@ -87,14 +154,15 @@ class GRPOTrainer:
         return generated_texts, outputs.sequences, sequence_lengths
 
     def generate_group_paths(self, input_query, trie, num_generations):
-        """去重采样路径；不足 K 条时继续补采样。"""
+        """去重生成路径；不足 K 条时继续补生成。"""
         unique_texts = []
         unique_sequences = []
         unique_lengths = []
         seen_paths = set()
         stagnant_rounds = 0
+        max_rounds = 1 if self.config.generation_mode == "beam_search" else self.config.max_resample_rounds
 
-        for round_index in range(self.config.max_resample_rounds):
+        for round_index in range(max_rounds):
             remaining = num_generations - len(unique_texts)
             if remaining <= 0:
                 break
@@ -116,25 +184,30 @@ class GRPOTrainer:
                 if len(unique_texts) >= num_generations:
                     break
 
-            print(
-                f"[DEBUG][generate] round={round_index + 1}, sampled={len(round_texts)}, "
-                f"new_unique={new_unique_count}, total_unique={len(unique_texts)}/{num_generations}"
+            logger.debug(
+                "生成轮次: round=%s, sampled=%s, new_unique=%s, total_unique=%s/%s",
+                round_index + 1,
+                len(round_texts),
+                new_unique_count,
+                len(unique_texts),
+                num_generations,
             )
 
-            if new_unique_count == 0:
-                stagnant_rounds += 1
-            else:
-                stagnant_rounds = 0
-
+            stagnant_rounds = stagnant_rounds + 1 if new_unique_count == 0 else 0
             if stagnant_rounds >= 2:
-                print("[DEBUG][generate] 连续两轮没有新增唯一路径，提前停止补采样")
+                logger.debug("连续两轮没有新增唯一路径，提前停止补生成")
                 break
 
         if len(unique_texts) < num_generations:
-            print(f"[DEBUG][generate] 仅获得 {len(unique_texts)}/{num_generations} 条唯一路径，将使用现有路径训练")
+            logger.warning(
+                "仅获得 %s/%s 条唯一路径，将使用现有路径继续训练",
+                len(unique_texts),
+                num_generations,
+            )
 
         if not unique_sequences:
-            return [], torch.empty((0, 0), dtype=torch.long, device=self.device), torch.empty((0, 0), dtype=torch.long, device=self.device)
+            empty_tensor = torch.empty((0, 0), dtype=torch.long, device=self.device)
+            return [], empty_tensor, empty_tensor
 
         padded_sequences = pad_sequence(
             unique_sequences,
@@ -156,27 +229,44 @@ class GRPOTrainer:
 
     def train_step(self, batch):
         """单步训练。"""
-        total_loss = 0
-        print(f"[DEBUG][train_step] 本次 batch 样本数: {len(batch)}")
+        total_loss = 0.0
+        effective_samples = 0
+        logger.debug("本次 batch 样本数: %s", len(batch))
 
         for sample in batch:
-            print(f"[DEBUG][train_step] 开始处理样本 id={sample.get('id', 'unknown')}")
-            generated_texts, sequences, sequence_attention_mask = self.generate_group_paths(
-                sample["input_query"], sample["trie"], self.config.num_generations
-            )
+            sample_id = sample.get("id", "unknown")
+            logger.debug("开始处理样本 id=%s", sample_id)
 
-            if not generated_texts:
-                print(f"[DEBUG][train_step] 样本 id={sample.get('id', 'unknown')} 未生成有效路径，已跳过")
+            generated_texts, sequences, sequence_attention_mask = self.generate_group_paths(
+                sample["input_query"],
+                sample["trie"],
+                self.config.num_generations,
+            )
+            if len(generated_texts) == 0:
+                logger.warning("样本 id=%s 未生成有效路径，已跳过", sample_id)
                 continue
 
-            print(f"[DEBUG][train_step] 去重后路径数: {len(generated_texts)}")
             rewards, advantages = self.reward_calculator.calculate_group_rewards(
                 generated_texts,
                 sample["question"],
                 sample["a_entity"],
                 sample["ground_paths"],
             )
-            print(f"[DEBUG][train_step] rewards={rewards.tolist()}, advantages={advantages.tolist()}")
+            logger.debug(
+                "样本 id=%s rewards=%s advantages=%s",
+                sample_id,
+                rewards.tolist(),
+                advantages.tolist(),
+            )
+            logger.info(
+                "sample_id=%s mode=%s unique=%s/%s reward_max=%.4f reward_mean=%.4f",
+                sample_id,
+                self.config.generation_mode,
+                len(generated_texts),
+                self.config.num_generations,
+                rewards.max().item(),
+                rewards.mean().item(),
+            )
 
             full_sequences = sequences
             old_log_probs = self.compute_log_probs(full_sequences, sequence_attention_mask)
@@ -191,27 +281,42 @@ class GRPOTrainer:
             kl_div = new_log_probs - old_log_probs
             loss = -(advantages.to(self.device) * new_log_probs).mean() + self.config.kl_penalty_beta * kl_div.mean()
             total_loss += loss.item()
+            effective_samples += 1
             loss.backward()
+
+        if effective_samples == 0:
+            self.optimizer.zero_grad()
+            return 0.0
 
         self.optimizer.step()
         self.optimizer.zero_grad()
-        return total_loss / len(batch)
+        return total_loss / effective_samples
 
     def train(self, train_loader, num_epochs):
         """训练循环。"""
         self.model.train()
         for epoch in range(num_epochs):
-            epoch_loss = 0
+            epoch_loss = 0.0
             skipped_batches = 0
+            effective_batches = 0
             total_batches = len(train_loader)
-            for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
+
+            for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}"):
                 if batch is None:
                     skipped_batches += 1
-                    print(f"[DEBUG][train] epoch={epoch+1} 遇到空 batch，已跳过")
+                    logger.debug("epoch=%s 遇到空 batch，已跳过", epoch + 1)
                     continue
+
                 loss = self.train_step(batch)
                 epoch_loss += loss
+                effective_batches += 1
 
-            effective_batches = total_batches - skipped_batches
-            print(f"[DEBUG][train] epoch={epoch+1} 总 batch={total_batches}, 跳过={skipped_batches}, 有效={effective_batches}")
-            print(f"Epoch {epoch+1} Loss: {epoch_loss / len(train_loader):.4f}")
+            avg_loss = epoch_loss / effective_batches if effective_batches > 0 else 0.0
+            logger.info(
+                "epoch=%s avg_loss=%.4f total_batches=%s skipped=%s effective=%s",
+                epoch + 1,
+                avg_loss,
+                total_batches,
+                skipped_batches,
+                effective_batches,
+            )
