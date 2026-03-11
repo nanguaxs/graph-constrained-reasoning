@@ -11,6 +11,7 @@ from logging_utils import get_logger
 
 sys.path.append('..')
 from src.graph_constrained_decoding import GraphConstrainedDecoding, PathEndStoppingCriteria
+from src.trie import Trie
 
 
 logger = get_logger("trainer")
@@ -25,6 +26,7 @@ class GRPOTrainer:
         self.config = config
         self.device = model.device
         self._warned_num_beams = False
+        self._warned_group_beam = False
 
     def prepare_model_prompt(self, query):
         """处理 chat 模型的提示格式，与推理阶段保持一致。"""
@@ -71,6 +73,28 @@ class GRPOTrainer:
             self._warned_num_beams = True
         return effective_num_beams
 
+    def _resolve_group_beam_settings(self, num_generations):
+        num_beam_groups = self.config.num_beam_groups
+        effective_num_beams = max(self.config.num_beams, num_generations, num_beam_groups)
+
+        if effective_num_beams % num_beam_groups != 0:
+            effective_num_beams += num_beam_groups - (effective_num_beams % num_beam_groups)
+
+        if (
+            effective_num_beams != self.config.num_beams or self.config.num_beams % num_beam_groups != 0
+        ) and not self._warned_group_beam:
+            logger.warning(
+                "generation_mode=%s 时已自动调整 num_beams: config_num_beams=%s, num_generations=%s, num_beam_groups=%s, effective_num_beams=%s",
+                self.config.generation_mode,
+                self.config.num_beams,
+                num_generations,
+                num_beam_groups,
+                effective_num_beams,
+            )
+            self._warned_group_beam = True
+
+        return effective_num_beams, num_beam_groups
+
     def _build_generation_kwargs(self, gcr, stopping_criteria, num_generations):
         generation_kwargs = {
             "max_new_tokens": self.config.max_new_tokens,
@@ -79,7 +103,6 @@ class GRPOTrainer:
             "stopping_criteria": stopping_criteria,
             "pad_token_id": self.tokenizer.eos_token_id,
             "return_dict_in_generate": True,
-            "output_scores": True,
         }
 
         if self.config.generation_mode == "sampling":
@@ -106,6 +129,17 @@ class GRPOTrainer:
                     "early_stopping": self.config.early_stopping,
                 }
             )
+        elif self.config.generation_mode == "group_beam_search":
+            effective_num_beams, num_beam_groups = self._resolve_group_beam_settings(num_generations)
+            generation_kwargs.update(
+                {
+                    "do_sample": False,
+                    "num_beams": effective_num_beams,
+                    "num_beam_groups": num_beam_groups,
+                    "diversity_penalty": self.config.diversity_penalty,
+                    "early_stopping": self.config.early_stopping,
+                }
+            )
         else:
             raise ValueError(f"不支持的 generation_mode: {self.config.generation_mode}")
 
@@ -115,6 +149,45 @@ class GRPOTrainer:
                 generation_kwargs["top_k"] = self.config.top_k
 
         return generation_kwargs
+
+    def _normalize_token_sequence(self, sequence):
+        if isinstance(sequence, torch.Tensor):
+            return tuple(int(token) for token in sequence.tolist())
+        return tuple(int(token) for token in sequence)
+
+    def _extract_generated_path_tokens(self, sequence, sequence_length):
+        start_token_id = self.tokenizer.convert_tokens_to_ids("<PATH>")
+        end_token_id = self.tokenizer.convert_tokens_to_ids("</PATH>")
+        trimmed_sequence = sequence[:sequence_length].tolist()
+
+        try:
+            start_index = max(
+                index for index, token_id in enumerate(trimmed_sequence) if token_id == start_token_id
+            )
+        except ValueError:
+            return None
+
+        path_tokens = trimmed_sequence[start_index:]
+        if end_token_id in path_tokens:
+            end_index = path_tokens.index(end_token_id) + 1
+            path_tokens = path_tokens[:end_index]
+
+        return tuple(path_tokens) if path_tokens else None
+
+    def _build_filtered_trie(self, trie, blocked_paths):
+        if not blocked_paths:
+            return trie
+
+        remaining_sequences = [
+            list(sequence)
+            for sequence in trie
+            if self._normalize_token_sequence(sequence) not in blocked_paths
+        ]
+
+        if not remaining_sequences:
+            return None
+
+        return Trie(remaining_sequences)
 
     def generate_paths_once(self, input_query, trie, num_generations):
         """按配置的生成模式单轮生成一组路径。"""
@@ -130,10 +203,12 @@ class GRPOTrainer:
         generation_kwargs = self._build_generation_kwargs(gcr, stopping_criteria, num_generations)
 
         logger.debug(
-            "生成参数: mode=%s, num_return_sequences=%s, num_beams=%s, temperature=%.3f, top_p=%.3f, top_k=%s",
+            "生成参数: mode=%s, num_return_sequences=%s, num_beams=%s, num_beam_groups=%s, diversity_penalty=%.3f, temperature=%.3f, top_p=%.3f, top_k=%s",
             self.config.generation_mode,
             num_generations,
             generation_kwargs.get("num_beams", 1),
+            generation_kwargs.get("num_beam_groups", 1),
+            generation_kwargs.get("diversity_penalty", 0.0),
             generation_kwargs.get("temperature", 1.0),
             generation_kwargs.get("top_p", 1.0),
             generation_kwargs.get("top_k", 0),
@@ -159,6 +234,7 @@ class GRPOTrainer:
         unique_sequences = []
         unique_lengths = []
         seen_paths = set()
+        blocked_path_tokens = set()
         stagnant_rounds = 0
         max_rounds = 1 if self.config.generation_mode == "beam_search" else self.config.max_resample_rounds
 
@@ -167,10 +243,25 @@ class GRPOTrainer:
             if remaining <= 0:
                 break
 
-            round_texts, round_sequences, round_lengths = self.generate_paths_once(input_query, trie, remaining)
+            filtered_trie = self._build_filtered_trie(trie, blocked_path_tokens)
+            if filtered_trie is None:
+                logger.debug("候选路径 trie 已被耗尽，提前停止补生成")
+                break
+
+            round_texts, round_sequences, round_lengths = self.generate_paths_once(
+                input_query,
+                filtered_trie,
+                remaining,
+            )
             new_unique_count = 0
+            round_blocked_count = 0
 
             for text, sequence, length in zip(round_texts, round_sequences, round_lengths):
+                generated_path_tokens = self._extract_generated_path_tokens(sequence, length)
+                if generated_path_tokens is not None and generated_path_tokens not in blocked_path_tokens:
+                    blocked_path_tokens.add(generated_path_tokens)
+                    round_blocked_count += 1
+
                 canonical_path = self.canonicalize_generated_path(text)
                 if canonical_path in seen_paths:
                     continue
@@ -185,9 +276,10 @@ class GRPOTrainer:
                     break
 
             logger.debug(
-                "生成轮次: round=%s, sampled=%s, new_unique=%s, total_unique=%s/%s",
+                "生成轮次: round=%s, sampled=%s, blocked=%s, new_unique=%s, total_unique=%s/%s",
                 round_index + 1,
                 len(round_texts),
+                round_blocked_count,
                 new_unique_count,
                 len(unique_texts),
                 num_generations,

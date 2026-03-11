@@ -89,7 +89,7 @@ class PathRewardCalculator:
 
     def parse_path_segments(self, path_text):
         """将路径文本解析为 [实体, 关系, 实体, ...] 的分段列表。"""
-        logger.debug("原始路径文本: %r", path_text)
+        # logger.debug("原始路径文本: %r", path_text)
 
         if not path_text:
             logger.debug("路径文本为空")
@@ -117,8 +117,8 @@ class PathRewardCalculator:
 
         normalized_text = re.sub(r"\s+", " ", normalized_text).strip()
         path_segments = [segment.strip() for segment in normalized_text.split("->") if segment.strip()]
-        logger.debug("规范化路径文本: %r", normalized_text)
-        logger.debug("路径分段结果: %s", path_segments)
+        # logger.debug("规范化路径文本: %r", normalized_text)
+        # logger.debug("路径分段结果: %s", path_segments)
         return path_segments
 
     def build_path_info(self, path_text):
@@ -153,8 +153,8 @@ class PathRewardCalculator:
             "hops": len(triples),
             "final_entity": final_entity,
         }
-        logger.debug("提取的终点实体: %r", final_entity)
-        logger.debug("解析出的三元组: %s", triples)
+        # logger.debug("提取的终点实体: %r", final_entity)
+        # logger.debug("解析出的三元组: %s", triples)
         return path_info
 
     def parse_ground_paths(self, ground_paths):
@@ -270,7 +270,7 @@ class PathRewardCalculator:
             return None
 
         final_entity = path_info["final_entity"]
-        logger.debug("提取的终点实体: %r", final_entity)
+        # logger.debug("提取的终点实体: %r", final_entity)
         return final_entity
 
     def count_hops(self, path_text):
@@ -320,15 +320,15 @@ class PathRewardCalculator:
             path_match_reward = match_components["match_score"]
             extra_hops = max(0, generated_info["hops"] - reference_ground_info["hops"])
             detour_reward = -1.2 * extra_hops
-            logger.debug(
-                "结构匹配: ref=%s exact=%.2f prefix_ratio=%.2f rel_sim=%.2f path_match=%.4f detour=%.4f",
-                reference_ground_info["text"],
-                match_components["exact"],
-                match_components["prefix_ratio"],
-                match_components["rel_sim"],
-                path_match_reward,
-                detour_reward,
-            )
+            # logger.debug(
+            #     "结构匹配: ref=%s exact=%.2f prefix_ratio=%.2f rel_sim=%.2f path_match=%.4f detour=%.4f",
+            #     reference_ground_info["text"],
+            #     match_components["exact"],
+            #     match_components["prefix_ratio"],
+            #     match_components["rel_sim"],
+            #     path_match_reward,
+            #     detour_reward,
+            # )
 
         semantic_reward, semantic_details = self.compute_semantic_reward(
             generated_info,
@@ -336,13 +336,13 @@ class PathRewardCalculator:
         )
         if semantic_details is None:
             logger.debug("语义辅助项: 0.0000")
-        else:
-            logger.debug(
-                "语义辅助项: ref=%s similarity=%.4f semantic=%.4f",
-                semantic_details["best_ground_text"],
-                semantic_details["best_similarity"],
-                semantic_reward,
-            )
+        # else:
+            # logger.debug(
+            #     "语义辅助项: ref=%s similarity=%.4f semantic=%.4f",
+            #     semantic_details["best_ground_text"],
+            #     semantic_details["best_similarity"],
+            #     semantic_reward,
+            # )
 
         reward = answer_reward + path_match_reward + detour_reward + loop_penalty + semantic_reward
         logger.debug("最终奖励: %.4f", reward)

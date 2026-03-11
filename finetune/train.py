@@ -18,13 +18,16 @@ logger = get_logger("train")
 
 def log_config_summary(config):
     logger.info(
-        "训练配置: model=%s data=%s split=%s mode=%s num_generations=%s num_beams=%s temperature=%.3f top_p=%.3f top_k=%s log_level=%s",
+        "训练配置: model=%s gpu_id=%s data=%s split=%s mode=%s num_generations=%s num_beams=%s num_beam_groups=%s diversity_penalty=%.3f temperature=%.3f top_p=%.3f top_k=%s log_level=%s",
         config.model_name,
+        config.gpu_id,
         config.data_path,
         config.train_split,
         config.generation_mode,
         config.num_generations,
         config.num_beams,
+        config.num_beam_groups,
+        config.diversity_penalty,
         config.temperature,
         config.top_p,
         config.top_k,
@@ -39,11 +42,29 @@ def main():
 
     logger.info("加载模型: %s", config.model_name)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name, trust_remote_code=True)
+    model_load_kwargs = {
+        "dtype": torch.bfloat16,
+        "trust_remote_code": True,
+    }
+
+    if config.gpu_id is None:
+        model_load_kwargs["device_map"] = "auto"
+        logger.info("未指定 gpu_id，使用 device_map=auto")
+    else:
+        if not torch.cuda.is_available():
+            raise RuntimeError(f"gpu_id={config.gpu_id} 已设置，但当前环境未检测到 CUDA")
+        if config.gpu_id >= torch.cuda.device_count():
+            raise RuntimeError(
+                f"gpu_id={config.gpu_id} 超出可用 GPU 数量范围，当前仅检测到 {torch.cuda.device_count()} 张 GPU"
+            )
+
+        torch.cuda.set_device(config.gpu_id)
+        model_load_kwargs["device_map"] = {"": config.gpu_id}
+        logger.info("指定使用 GPU: cuda:%s", config.gpu_id)
+
     model = AutoModelForCausalLM.from_pretrained(
         config.model_name,
-        dtype=torch.bfloat16,
-        device_map="auto",
-        trust_remote_code=True,
+        **model_load_kwargs,
     )
 
     special_tokens = {"additional_special_tokens": ["<PATH>", "</PATH>"]}

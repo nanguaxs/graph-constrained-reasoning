@@ -6,6 +6,7 @@ from dataclasses import dataclass
 class GRPOConfig:
     # 模型配置
     model_name: str = "offline_assets/models/Qwen3.5-0.8B"
+    gpu_id: int | None = None
 
     # LoRA 配置
     lora_r: int = 64
@@ -13,22 +14,30 @@ class GRPOConfig:
     lora_dropout: float = 0.05
     target_modules: list = None
 
-    # 生成配置
-    generation_mode: str = "beam_search"
+    # 生成配置（全部模式通用）
+    generation_mode: str = "sampling"#group——beam不可用
     num_generations: int = 12
-    num_beams: int = 3
     max_new_tokens: int = 256
-    temperature: float = 0.8
-    top_p: float = 0.9
-    top_k: int = 0
     early_stopping: bool = True
     max_resample_rounds: int = 4
+
+    # 生成配置（beam_search / beam_sample / group_beam_search）
+    num_beams: int = 12
+
+    # 生成配置（sampling / beam_sample）
+    temperature: float = 1.0
+    top_p: float = 0.9
+    top_k: int = 0
+
+    # 生成配置（group_beam_search）
+    num_beam_groups: int = 4
+    diversity_penalty: float = 0.4
 
     # GRPO 配置
     kl_penalty_beta: float = 0.04
 
     # 日志配置
-    log_level: str = "INFO"
+    log_level: str = "DEBUG"
 
     # 训练配置
     learning_rate: float = 2e-6
@@ -67,7 +76,13 @@ class GRPOConfig:
         self.generation_mode = str(self.generation_mode).strip().lower()
         self.log_level = str(self.log_level).strip().upper()
 
-        valid_generation_modes = {"beam_search", "sampling", "beam_sample"}
+        generation_mode_aliases = {
+            "groupbeam": "group_beam_search",
+            "group_beam": "group_beam_search",
+        }
+        self.generation_mode = generation_mode_aliases.get(self.generation_mode, self.generation_mode)
+
+        valid_generation_modes = {"beam_search", "sampling", "beam_sample", "group_beam_search"}
         if self.generation_mode not in valid_generation_modes:
             raise ValueError(
                 f"generation_mode 必须是 {sorted(valid_generation_modes)} 之一，当前为: {self.generation_mode}"
@@ -89,6 +104,17 @@ class GRPOConfig:
             raise ValueError("top_p 必须在 (0, 1] 范围内")
         if self.top_k < 0:
             raise ValueError("top_k 不能为负数")
+        if self.num_beam_groups < 1:
+            raise ValueError("num_beam_groups 必须大于等于 1")
+        if self.diversity_penalty < 0:
+            raise ValueError("diversity_penalty 不能为负数")
+        if self.gpu_id is not None and self.gpu_id < 0:
+            raise ValueError("gpu_id 不能为负数")
+        if self.generation_mode == "group_beam_search":
+            if self.num_beam_groups < 2:
+                raise ValueError("group_beam_search 模式下 num_beam_groups 必须大于等于 2")
+            if self.diversity_penalty <= 0:
+                raise ValueError("group_beam_search 模式下 diversity_penalty 必须大于 0")
 
         if self.output_dir is None:
             model_name = self.model_name.split("/")[-1]
