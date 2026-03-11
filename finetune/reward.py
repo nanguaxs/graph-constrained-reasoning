@@ -33,18 +33,54 @@ class PathRewardCalculator:
             if self.embedding_api_key:
                 headers["Authorization"] = f"Bearer {self.embedding_api_key}"
 
-            response = requests.post(
-                self.embedding_api_url,
-                json={"input": uncached_texts, "model": self.embedding_model_name},
-                headers=headers,
-                timeout=30,
-            )
-            response.raise_for_status()
-            payload = response.json()
+            response = None
+            try:
+                response = requests.post(
+                    self.embedding_api_url,
+                    json={"input": uncached_texts, "model": self.embedding_model_name},
+                    headers=headers,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except requests.HTTPError as exc:
+                status_code = response.status_code if response is not None else "unknown"
+                response_preview = response.text[:500] if response is not None else ""
+                raise RuntimeError(
+                    f"embedding API 返回 HTTP 错误: url={self.embedding_api_url} model={self.embedding_model_name} "
+                    f"status={status_code} body={response_preview}"
+                ) from exc
+            except requests.RequestException as exc:
+                raise RuntimeError(
+                    f"embedding API 请求异常: url={self.embedding_api_url} model={self.embedding_model_name} error={exc}"
+                ) from exc
+            except ValueError as exc:
+                response_preview = response.text[:500] if response is not None else ""
+                raise RuntimeError(
+                    f"embedding API 返回的不是合法 JSON: url={self.embedding_api_url} model={self.embedding_model_name} "
+                    f"body={response_preview}"
+                ) from exc
+
             if "data" in payload:
                 embeddings = [item["embedding"] for item in payload["data"]]
-            else:
+            elif "embeddings" in payload:
                 embeddings = payload["embeddings"]
+            elif "embedding" in payload:
+                raw_embedding = payload["embedding"]
+                if isinstance(raw_embedding, list) and raw_embedding and isinstance(raw_embedding[0], (list, tuple)):
+                    embeddings = raw_embedding
+                else:
+                    embeddings = [raw_embedding]
+            else:
+                raise RuntimeError(
+                    f"embedding API 返回缺少 embeddings 字段: url={self.embedding_api_url} "
+                    f"keys={sorted(payload.keys())}"
+                )
+
+            if len(embeddings) != len(uncached_texts):
+                raise RuntimeError(
+                    f"embedding 数量与请求文本数量不一致: expected={len(uncached_texts)} actual={len(embeddings)}"
+                )
 
             for text, embedding in zip(uncached_texts, embeddings):
                 self.embedding_cache[text] = torch.tensor(embedding, dtype=torch.float32)
@@ -207,8 +243,14 @@ class PathRewardCalculator:
         try:
             generated_emb = self.get_embeddings([generated_info["text"]])
             ground_embs = self.get_embeddings(ground_texts)
-        except Exception as exc:
-            logger.warning("语义辅助项计算失败，已退化为 0: %s", exc)
+        except Exception:
+            logger.exception(
+                "语义辅助项计算失败，已退化为 0: url=%s model=%s generated=%r ground_count=%s",
+                self.embedding_api_url,
+                self.embedding_model_name,
+                generated_info["text"],
+                len(ground_texts),
+            )
             return 0.0, None
 
         similarities = torch.cosine_similarity(generated_emb, ground_embs, dim=1)
@@ -255,6 +297,17 @@ class PathRewardCalculator:
         answer_reward = 5.0 if generated_info["final_entity"] in answer_entities else 0.0
         logger.debug("答案奖励: %.4f", answer_reward)
 
+        entities = generated_info["segments"][::2]
+        seen_entities = set()
+        revisit_count = 0
+        for entity in entities:
+            if entity in seen_entities:
+                revisit_count += 1
+            else:
+                seen_entities.add(entity)
+        loop_penalty = max(-4.0, -2.0 * revisit_count)
+        logger.debug("绕圈惩罚: revisits=%s loop_penalty=%.4f", revisit_count, loop_penalty)
+
         reference_ground_info, match_components = self.select_reference_ground_path(
             generated_info,
             parsed_ground_paths,
@@ -266,7 +319,7 @@ class PathRewardCalculator:
         else:
             path_match_reward = match_components["match_score"]
             extra_hops = max(0, generated_info["hops"] - reference_ground_info["hops"])
-            detour_reward = -0.5 * extra_hops
+            detour_reward = -1.2 * extra_hops
             logger.debug(
                 "结构匹配: ref=%s exact=%.2f prefix_ratio=%.2f rel_sim=%.2f path_match=%.4f detour=%.4f",
                 reference_ground_info["text"],
@@ -291,7 +344,7 @@ class PathRewardCalculator:
                 semantic_reward,
             )
 
-        reward = answer_reward + path_match_reward + detour_reward + semantic_reward
+        reward = answer_reward + path_match_reward + detour_reward + loop_penalty + semantic_reward
         logger.debug("最终奖励: %.4f", reward)
         return reward
 
