@@ -198,7 +198,7 @@ class PathGenerationWithAnswerPromptBuilder(JointReasoningPromptBuilder):
 """
 
 class ChinesePathGenerationWithAnswerPromptBuilder(JointReasoningPromptBuilder):
-    ZERO_SHOT_PROMPT = """推理路径是知识图谱中连接问题主题实体与答案实体的三元组序列。给定一个问题，请从主题实体出发，在知识图谱中生成若干推理路径。
+    ZERO_SHOT_PROMPT = """推理路径是知识图谱中连接问题主题实体与答案实体的三元组序列。给定一个问题，请从主题实体出发，在知识图谱中生成若干推理路径。实体和关系之间用->箭头连接，一个三元组可以表示为：实体1 -> 关系1 -> 实体2。
 
 # 问题：
 {question}
