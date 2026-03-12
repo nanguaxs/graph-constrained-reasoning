@@ -17,10 +17,12 @@ class PathRewardCalculator:
         embedding_api_url="http://localhost:8000/v1/embeddings",
         embedding_model_name="text-embedding-3-small",
         embedding_api_key="",
+        use_semantic_reward=True,
     ):
         self.embedding_api_url = embedding_api_url
         self.embedding_model_name = embedding_model_name
         self.embedding_api_key = embedding_api_key
+        self.use_semantic_reward = use_semantic_reward
         self.embedding_cache = {}
 
     def get_embeddings(self, texts):
@@ -330,12 +332,17 @@ class PathRewardCalculator:
             #     detour_reward,
             # )
 
-        semantic_reward, semantic_details = self.compute_semantic_reward(
-            generated_info,
-            parsed_ground_paths,
-        )
-        if semantic_details is None:
-            logger.debug("语义辅助项: 0.0000")
+        if self.use_semantic_reward:
+            semantic_reward, semantic_details = self.compute_semantic_reward(
+                generated_info,
+                parsed_ground_paths,
+            )
+            if semantic_details is None:
+                logger.debug("语义辅助项: 0.0000")
+        else:
+            semantic_reward = 0.0
+            semantic_details = None
+            logger.debug("语义辅助项已关闭，按 0.0000 处理")
         # else:
             # logger.debug(
             #     "语义辅助项: ref=%s similarity=%.4f semantic=%.4f",

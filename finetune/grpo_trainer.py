@@ -189,12 +189,73 @@ class GRPOTrainer:
 
         return Trie(remaining_sequences)
 
-    def generate_paths_once(self, input_query, trie, num_generations):
-        """按配置的生成模式单轮生成一组路径。"""
+    def _tokenize_generation_prompt(self, input_query):
         formatted_query = self.prepare_model_prompt(input_query)
         inputs = self.tokenizer(formatted_query, return_tensors="pt", add_special_tokens=False)
-        input_ids = inputs.input_ids.to(self.device)
-        attention_mask = inputs.attention_mask.to(self.device)
+        return formatted_query, inputs.input_ids.to(self.device), inputs.attention_mask.to(self.device)
+
+    def _strip_path_tags(self, path_text):
+        normalized_text = str(path_text).strip()
+        if "<PATH>" in normalized_text:
+            normalized_text = normalized_text.split("<PATH>", 1)[-1]
+        if "</PATH>" in normalized_text:
+            normalized_text = normalized_text.split("</PATH>", 1)[0]
+        return self.canonicalize_generated_path(normalized_text)
+
+    def _select_ground_paths_for_injection(self, ground_paths, num_generations):
+        if ground_paths is None:
+            return []
+        if isinstance(ground_paths, str):
+            ground_paths = [ground_paths]
+
+        max_ground_paths = min(num_generations, 1 if len(ground_paths) == 1 else 2)
+        selected_paths = []
+        seen_paths = set()
+
+        for path_text in ground_paths:
+            stripped_path = self._strip_path_tags(path_text)
+            if not stripped_path or stripped_path in seen_paths:
+                continue
+
+            seen_paths.add(stripped_path)
+            selected_paths.append(stripped_path)
+            if len(selected_paths) >= max_ground_paths:
+                break
+
+        return selected_paths
+
+    def _build_ground_truth_sequence(self, formatted_query, prompt_input_ids, path_text):
+        clean_path_text = self._strip_path_tags(path_text)
+        full_path_text = f"<PATH>{clean_path_text}</PATH>"
+        path_token_ids = self.tokenizer(
+            full_path_text,
+            return_tensors="pt",
+            add_special_tokens=False,
+        ).input_ids[0].to(self.device)
+
+        if formatted_query.endswith("<PATH>"):
+            generation_suffix = f"{clean_path_text}</PATH>"
+        else:
+            generation_suffix = full_path_text
+
+        suffix_token_ids = self.tokenizer(
+            generation_suffix,
+            return_tensors="pt",
+            add_special_tokens=False,
+        ).input_ids[0].to(self.device)
+
+        sequence_parts = [prompt_input_ids[0], suffix_token_ids]
+        if self.tokenizer.eos_token_id is not None:
+            sequence_parts.append(
+                torch.tensor([self.tokenizer.eos_token_id], dtype=torch.long, device=self.device)
+            )
+
+        full_sequence = torch.cat(sequence_parts, dim=0)
+        return clean_path_text, full_sequence, full_sequence.shape[0], tuple(path_token_ids.tolist())
+
+    def generate_paths_once(self, input_query, trie, num_generations):
+        """按配置的生成模式单轮生成一组路径。"""
+        _, input_ids, attention_mask = self._tokenize_generation_prompt(input_query)
 
         start_token_ids = self.tokenizer.convert_tokens_to_ids("<PATH>")
         end_token_ids = self.tokenizer.convert_tokens_to_ids("</PATH>")
@@ -228,8 +289,8 @@ class GRPOTrainer:
         sequence_lengths = [self.get_sequence_length(sequence, prompt_len) for sequence in outputs.sequences]
         return generated_texts, outputs.sequences, sequence_lengths
 
-    def generate_group_paths(self, input_query, trie, num_generations):
-        """去重生成路径；不足 K 条时继续补生成。"""
+    def generate_group_paths(self, input_query, trie, ground_paths, num_generations):
+        """先注入 GT 路径，再去重生成路径；不足 K 条时继续补生成。"""
         unique_texts = []
         unique_sequences = []
         unique_lengths = []
@@ -237,6 +298,33 @@ class GRPOTrainer:
         blocked_path_tokens = set()
         stagnant_rounds = 0
         max_rounds = 1 if self.config.generation_mode == "beam_search" else self.config.max_resample_rounds
+        formatted_query, prompt_input_ids, _ = self._tokenize_generation_prompt(input_query)
+
+        injected_count = 0
+        for ground_path in self._select_ground_paths_for_injection(ground_paths, num_generations):
+            clean_path_text, full_sequence, sequence_length, path_token_ids = self._build_ground_truth_sequence(
+                formatted_query,
+                prompt_input_ids,
+                ground_path,
+            )
+            canonical_path = self.canonicalize_generated_path(clean_path_text)
+            if canonical_path in seen_paths:
+                continue
+
+            seen_paths.add(canonical_path)
+            unique_texts.append(clean_path_text)
+            unique_sequences.append(full_sequence)
+            unique_lengths.append(sequence_length)
+            blocked_path_tokens.add(path_token_ids)
+            injected_count += 1
+
+        if injected_count > 0:
+            logger.debug(
+                "已注入 GT 路径: injected=%s total_unique=%s/%s",
+                injected_count,
+                len(unique_texts),
+                num_generations,
+            )
 
         for round_index in range(max_rounds):
             remaining = num_generations - len(unique_texts)
@@ -332,6 +420,7 @@ class GRPOTrainer:
             generated_texts, sequences, sequence_attention_mask = self.generate_group_paths(
                 sample["input_query"],
                 sample["trie"],
+                sample["ground_paths"],
                 self.config.num_generations,
             )
             if len(generated_texts) == 0:

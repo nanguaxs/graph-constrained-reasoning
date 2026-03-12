@@ -1,4 +1,5 @@
 ﻿"""训练配置。"""
+import os
 from dataclasses import dataclass
 
 
@@ -53,6 +54,7 @@ class GRPOConfig:
     undirected: bool = False
 
     # 奖励配置
+    use_semantic_reward: bool = True
     embedding_api_url: str = "https://yunwu.ai/v1/embeddings"
     embedding_model_name: str = "text-embedding-3-large"
     embedding_api_key: str = "sk-5j4c26Aw7VS26K8PWz7Ayqp5zsjWo1J2krY4vzTiMDBiXlJ2"
@@ -60,6 +62,23 @@ class GRPOConfig:
     # 保存配置
     output_dir: str = None
     save_steps: int = 500
+
+    @staticmethod
+    def _normalize_model_name(model_name):
+        normalized_model_name = str(model_name).rstrip("/\\")
+        return os.path.basename(normalized_model_name) or normalized_model_name
+
+    def _build_default_output_dir(self):
+        model_name = self._normalize_model_name(self.model_name)
+        semantic_tag = "semantic_on" if self.use_semantic_reward else "semantic_off"
+        return os.path.join(
+            "finetune",
+            "output",
+            model_name,
+            self.generation_mode,
+            f"pathlen_{self.index_path_length}",
+            semantic_tag,
+        )
 
     def __post_init__(self):
         if self.target_modules is None:
@@ -117,5 +136,4 @@ class GRPOConfig:
                 raise ValueError("group_beam_search 模式下 diversity_penalty 必须大于 0")
 
         if self.output_dir is None:
-            model_name = self.model_name.split("/")[-1]
-            self.output_dir = f"finetune/output/{model_name}"
+            self.output_dir = self._build_default_output_dir()

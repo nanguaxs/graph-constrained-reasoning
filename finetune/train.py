@@ -18,7 +18,7 @@ logger = get_logger("train")
 
 def log_config_summary(config):
     logger.info(
-        "训练配置: model=%s gpu_id=%s data=%s split=%s mode=%s num_generations=%s num_beams=%s num_beam_groups=%s diversity_penalty=%.3f temperature=%.3f top_p=%.3f top_k=%s log_level=%s",
+        "训练配置: model=%s gpu_id=%s data=%s split=%s mode=%s num_generations=%s num_beams=%s num_beam_groups=%s diversity_penalty=%.3f temperature=%.3f top_p=%.3f top_k=%s semantic=%s log_level=%s",
         config.model_name,
         config.gpu_id,
         config.data_path,
@@ -31,6 +31,7 @@ def log_config_summary(config):
         config.temperature,
         config.top_p,
         config.top_k,
+        config.use_semantic_reward,
         config.log_level,
     )
 
@@ -100,10 +101,12 @@ def main():
 
     logger.info("使用嵌入模型 API: %s", config.embedding_api_url)
     logger.info("嵌入模型名称: %s", config.embedding_model_name)
+    logger.info("启用语义监督: %s", config.use_semantic_reward)
     reward_calculator = PathRewardCalculator(
         config.embedding_api_url,
         config.embedding_model_name,
         config.embedding_api_key,
+        config.use_semantic_reward,
     )
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
