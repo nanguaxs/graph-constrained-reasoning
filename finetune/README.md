@@ -47,3 +47,14 @@ pip install transformers peft sentence-transformers datasets torch requests
 cd finetune
 python train.py
 ```
+
+### 4. 合并 LoRA adapter 与基座模型
+
+编辑 `merge_adapter.py` 顶部的 `MergeConfig` 路径配置，然后运行：
+
+```bash
+cd finetune
+python merge_adapter.py
+```
+
+默认会输出到 `adapter_path + "__merged"`，生成可直接用于推理脚本的完整模型目录。

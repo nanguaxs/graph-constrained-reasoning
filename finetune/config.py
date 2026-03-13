@@ -64,20 +64,29 @@ class GRPOConfig:
     save_steps: int = 500
 
     @staticmethod
-    def _normalize_model_name(model_name):
-        normalized_model_name = str(model_name).rstrip("/\\")
-        return os.path.basename(normalized_model_name) or normalized_model_name
+    def _normalize_leaf_name(path_like):
+        normalized_name = str(path_like).rstrip("/\\")
+        return os.path.basename(normalized_name) or normalized_name
 
-    def _build_default_output_dir(self):
-        model_name = self._normalize_model_name(self.model_name)
+    def _build_default_output_name(self):
+        model_name = self._normalize_leaf_name(self.model_name)
+        data_name = self._normalize_leaf_name(self.data_path)
         semantic_tag = "semantic_on" if self.use_semantic_reward else "semantic_off"
-        return os.path.join(
-            "finetune",
-            "output",
+        parts = [
             model_name,
+            data_name,
+            self.train_split,
             self.generation_mode,
             f"pathlen_{self.index_path_length}",
             semantic_tag,
+        ]
+        return "__".join(parts)
+
+    def _build_default_output_dir(self):
+        return os.path.join(
+            "finetune",
+            "output",
+            self._build_default_output_name(),
         )
 
     def __post_init__(self):
