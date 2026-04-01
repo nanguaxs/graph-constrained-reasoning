@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 import torch
 from .base_language_model import BaseLanguageModel
@@ -14,6 +16,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 class HfCausalModel(BaseLanguageModel):
     DTYPE = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
+    GROUP_BEAM_CUSTOM_GENERATE = "transformers-community/group-beam-search"
 
     @staticmethod
     def add_args(parser):
@@ -101,7 +104,8 @@ class HfCausalModel(BaseLanguageModel):
                 self.generation_cfg = GenerationConfig()
             
         self.generation_cfg.max_new_tokens = self.args.max_new_tokens
-        self.generation_cfg.return_dict_in_generate = (True,)
+        self.generation_cfg.return_dict_in_generate = True
+        self.generation_cfg.pad_token_id = self.tokenizer.eos_token_id
 
         if self.args.generation_mode == "greedy":
             self.generation_cfg.do_sample = False
@@ -131,6 +135,60 @@ class HfCausalModel(BaseLanguageModel):
             self.generation_cfg.num_beam_groups = self.args.k
             self.generation_cfg.early_stopping = True
             self.generation_cfg.diversity_penalty = 1.
+
+    def _is_group_beam_mode(self):
+        return self.args.generation_mode in {"group-beam", "group-beam-early-stopping"}
+
+    def _is_hf_hub_offline(self):
+        return os.getenv("HF_HUB_OFFLINE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+    def _is_group_beam_cached(self):
+        hf_home = os.getenv("HF_HOME")
+        cache_roots = [Path.home() / ".cache" / "huggingface"]
+        if hf_home:
+            cache_roots.append(Path(hf_home))
+
+        candidate_suffixes = [
+            Path("modules") / "transformers_modules" / "transformers-community" / "group-beam-search",
+            Path("modules") / "transformers_modules" / "transformers_community" / "group_beam_search",
+            Path("hub") / "models--transformers-community--group-beam-search",
+        ]
+
+        for root in cache_roots:
+            for suffix in candidate_suffixes:
+                if (root / suffix).exists():
+                    return True
+        return False
+
+    def _build_generate_kwargs(self):
+        generate_kwargs = {
+            "generation_config": self.generation_cfg,
+        }
+        if self._is_group_beam_mode():
+            generate_kwargs["custom_generate"] = self.GROUP_BEAM_CUSTOM_GENERATE
+            generate_kwargs["trust_remote_code"] = True
+        return generate_kwargs
+
+    def _raise_group_beam_error(self, exc):
+        message = [
+            "Group beam generation failed.",
+            (
+                "This transformers build expects "
+                f"custom_generate='{self.GROUP_BEAM_CUSTOM_GENERATE}' for group beam search."
+            ),
+        ]
+        if self._is_hf_hub_offline() and not self._is_group_beam_cached():
+            message.append(
+                "HF_HUB_OFFLINE=1 is enabled and the group-beam custom_generate repo was not found in common local caches."
+            )
+            message.append(
+                "Either disable HF_HUB_OFFLINE for the first run, pre-cache that repo locally, downgrade to a transformers version that still bundles group beam search, or switch to beam/sequential sampling."
+            )
+        else:
+            message.append(
+                "Please make sure generate() is called with trust_remote_code=True and the custom_generate repo is reachable."
+            )
+        raise RuntimeError(" ".join(message)) from exc
 
     def prepare_model_prompt(self, query):
         if self.args.chat_model:
@@ -172,11 +230,11 @@ class HfCausalModel(BaseLanguageModel):
             res = self.model.generate(
                 input_ids = input_ids,
                 attention_mask = attention_mask,
-                generation_config=self.generation_cfg,
-                return_dict_in_generate=True,
-                pad_token_id=self.tokenizer.eos_token_id
+                **self._build_generate_kwargs(),
             )
         except Exception as e:
+            if self._is_group_beam_mode():
+                self._raise_group_beam_error(e)
             print(e)
             return None
         response = []

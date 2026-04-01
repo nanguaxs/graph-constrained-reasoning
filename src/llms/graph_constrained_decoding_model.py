@@ -23,13 +23,13 @@ class GraphConstrainedDecodingModel(HfCausalModel):
             res = self.model.generate(
                 input_ids = input_ids,
                 attention_mask = attention_mask,
-                generation_config=self.generation_cfg,
                 prefix_allowed_tokens_fn=gcr.allowed_tokens_fn,
                 stopping_criteria=stopping_criteria,
-                return_dict_in_generate=True,
-                pad_token_id=self.tokenizer.eos_token_id
+                **self._build_generate_kwargs(),
             )
         except Exception as e:
+            if self._is_group_beam_mode():
+                self._raise_group_beam_error(e)
             print(e)
             return None
 
