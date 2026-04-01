@@ -146,3 +146,102 @@ class GRPOConfig:
 
         if self.output_dir is None:
             self.output_dir = self._build_default_output_dir()
+
+
+@dataclass
+class SFTConfig:
+    # 模型配置
+    model_name: str = "offline_assets/models/Qwen3.5-0.8B"
+    gpu_id: int | None = None
+
+    # LoRA 配置
+    lora_r: int = 64
+    lora_alpha: int = 128
+    lora_dropout: float = 0.05
+    target_modules: list = None
+
+    # 日志配置
+    log_level: str = "DEBUG"
+
+    # 训练配置
+    learning_rate: float = 2e-6
+    num_epochs: int = 2
+    batch_size: int = 8
+    gradient_accumulation_steps: int = 8
+
+    # 数据配置
+    data_path: str = "offline_assets/datasets/COKG_QA"
+    train_split: str = "train"
+    index_path_length: int = 3
+    undirected: bool = False
+    max_ground_paths_per_sample: int | None = None
+
+    # 保存配置
+    output_dir: str = None
+    save_steps: int = 500
+
+    @staticmethod
+    def _normalize_leaf_name(path_like):
+        normalized_name = str(path_like).rstrip("/\\")
+        return os.path.basename(normalized_name) or normalized_name
+
+    def _build_default_output_name(self):
+        model_name = self._normalize_leaf_name(self.model_name)
+        data_name = self._normalize_leaf_name(self.data_path)
+        path_tag = (
+            "all_paths"
+            if self.max_ground_paths_per_sample is None
+            else f"top_{self.max_ground_paths_per_sample}_paths"
+        )
+        parts = [
+            model_name,
+            data_name,
+            self.train_split,
+            "sft",
+            f"pathlen_{self.index_path_length}",
+            path_tag,
+        ]
+        return "__".join(parts)
+
+    def _build_default_output_dir(self):
+        return os.path.join(
+            "finetune",
+            "output",
+            self._build_default_output_name(),
+        )
+
+    def __post_init__(self):
+        if self.target_modules is None:
+            self.target_modules = [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ]
+
+        self.log_level = str(self.log_level).strip().upper()
+
+        valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if self.log_level not in valid_log_levels:
+            raise ValueError(f"log_level 必须是 {sorted(valid_log_levels)} 之一，当前为: {self.log_level}")
+
+        if self.gpu_id is not None and self.gpu_id < 0:
+            raise ValueError("gpu_id 不能为负数")
+        if self.learning_rate <= 0:
+            raise ValueError("learning_rate 必须大于 0")
+        if self.num_epochs < 1:
+            raise ValueError("num_epochs 必须大于等于 1")
+        if self.batch_size < 1:
+            raise ValueError("batch_size 必须大于等于 1")
+        if self.gradient_accumulation_steps < 1:
+            raise ValueError("gradient_accumulation_steps 必须大于等于 1")
+        if self.index_path_length < 1:
+            raise ValueError("index_path_length 必须大于等于 1")
+        if self.max_ground_paths_per_sample is not None and self.max_ground_paths_per_sample < 1:
+            raise ValueError("max_ground_paths_per_sample 必须为正整数或 None")
+
+        if self.output_dir is None:
+            self.output_dir = self._build_default_output_dir()

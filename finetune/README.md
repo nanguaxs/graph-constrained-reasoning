@@ -20,6 +20,8 @@ finetune/
 ├── reward.py          # 奖励函数
 ├── grpo_trainer.py    # GRPO 训练器
 ├── train.py           # 训练启动脚本
+├── sft_trainer.py     # SFT 训练器
+├── sft_train.py       # SFT 启动脚本
 ├── logging_utils.py   # 日志工具
 └── README.md          # 使用说明
 ```
@@ -58,3 +60,17 @@ python merge_adapter.py
 ```
 
 默认会输出到 `adapter_path + "__merged"`，生成可直接用于推理脚本的完整模型目录。
+
+## SFT 对比训练
+
+如果想用标准监督微调直接学习 GT path，可编辑 `config.py` 中 `SFTConfig` 的参数，然后运行：
+
+```bash
+cd finetune
+python sft_train.py
+```
+
+说明：
+- `SFTPathDataset` 会把每条 GT path 展开成一个监督样本
+- 默认 `max_ground_paths_per_sample=None`，即使用样本中的全部 GT path
+- 若想和当前 GRPO 中“每题最多注入 2 条 GT path”的设置更接近，可将 `max_ground_paths_per_sample=2`

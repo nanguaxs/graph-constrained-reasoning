@@ -19,7 +19,7 @@ export HF_HUB_OFFLINE=1
 
 DATA_PATH="./offline_assets/datasets"
 # DATA_LIST="RoG-webqsp RoG-cwq"
-DATA_LIST="onedata"
+DATA_LIST="COKG_QA"
 SPLIT="test"
 INDEX_LEN=2
 ATTN_IMP="flash_attention_2"
