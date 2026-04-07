@@ -1,6 +1,6 @@
 {
   "model_name": "Qwen_Qwen3.5-0.8B",
-  "model_path": "offline_assets/models/Qwen_Qwen3.5-0.8B",
+  "model_path": "offline_assets/models/Qwen3.5-0.8B",
   "global_kg_file": "interactive_client/KG.json",
   "dataset_file": "offline_assets/datasets/COKG_QA/test.jsonl",
   "prompt_mode": "zero-shot",
